@@ -20,6 +20,16 @@ import {
 } from "@/lib/booking";
 import { FirstSessionDatePicker } from "@/components/first-session-date-picker";
 
+async function parseJsonResponse<T>(response: Response) {
+  const text = await response.text();
+
+  if (!text) {
+    return {} as T;
+  }
+
+  return JSON.parse(text) as T;
+}
+
 export default function Home() {
   const [email, setEmail] = useState("");
   const [firstSessionDate, setFirstSessionDate] = useState("");
@@ -217,12 +227,12 @@ export default function Home() {
           selections,
         }),
       });
-      const data = (await response.json()) as {
+      const data = await parseJsonResponse<{
         booking?: BookingEntry;
         message?: string;
         occupiedSlots?: OccupiedSlots;
         existingBooking?: BookingEntry | null;
-      };
+      }>(response);
 
       if (!response.ok) {
         setMessage(data.message ?? "Booking could not be saved.");

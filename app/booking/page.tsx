@@ -14,6 +14,16 @@ type AdminResponse = {
   message?: string;
 };
 
+async function parseJsonResponse<T>(response: Response) {
+  const text = await response.text();
+
+  if (!text) {
+    return {} as T;
+  }
+
+  return JSON.parse(text) as T;
+}
+
 export default function ViewBookingsPage() {
   const [password, setPassword] = useState("");
   const [bookings, setBookings] = useState<BookingEntry[]>([]);
@@ -36,7 +46,7 @@ export default function ViewBookingsPage() {
       },
       body: body ? JSON.stringify(body) : undefined,
     });
-    const data = (await response.json()) as AdminResponse;
+    const data = await parseJsonResponse<AdminResponse>(response);
 
     if (!response.ok) {
       throw new Error(data.message ?? "Request failed.");

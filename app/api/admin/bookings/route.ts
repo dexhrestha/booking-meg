@@ -1,6 +1,4 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
 import {
   BookingEntry,
   BookingState,
@@ -13,8 +11,11 @@ import {
   sessionConfigs,
   slotOptions,
 } from "@/lib/booking";
-
-const bookingsFile = path.join(process.cwd(), "data", "bookings.json");
+import {
+  getStorageErrorMessage,
+  readBookings,
+  writeBookings,
+} from "@/lib/bookings-store";
 
 function getAdminPassword() {
   return (
@@ -37,28 +38,6 @@ function unauthorizedResponse() {
     { message: "Enter the correct bookings password." },
     { status: 401 },
   );
-}
-
-async function readBookings(): Promise<BookingEntry[]> {
-  try {
-    const file = await readFile(bookingsFile, "utf8");
-    return JSON.parse(file) as BookingEntry[];
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return [];
-    }
-
-    throw error;
-  }
-}
-
-async function writeBookings(bookings: BookingEntry[]) {
-  await mkdir(path.dirname(bookingsFile), { recursive: true });
-  await writeFile(bookingsFile, `${JSON.stringify(bookings, null, 2)}\n`);
 }
 
 function isCompleteBooking(booking: BookingEntry) {
@@ -96,11 +75,18 @@ export async function GET(request: NextRequest) {
     return unauthorizedResponse();
   }
 
-  const bookings = await readBookings();
+  try {
+    const bookings = await readBookings();
 
-  return NextResponse.json({
-    bookings: bookings.filter(isCompleteBooking),
-  });
+    return NextResponse.json({
+      bookings: bookings.filter(isCompleteBooking),
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { message: getStorageErrorMessage(error) },
+      { status: 500 },
+    );
+  }
 }
 
 export async function PUT(request: NextRequest) {
@@ -108,19 +94,20 @@ export async function PUT(request: NextRequest) {
     return unauthorizedResponse();
   }
 
-  const payload = (await request.json()) as {
-    booking?: BookingEntry;
-  };
-  const booking = payload.booking;
+  try {
+    const payload = (await request.json()) as {
+      booking?: BookingEntry;
+    };
+    const booking = payload.booking;
 
-  if (!booking) {
-    return NextResponse.json(
-      { message: "Choose a booking to edit." },
-      { status: 400 },
-    );
-  }
+    if (!booking) {
+      return NextResponse.json(
+        { message: "Choose a booking to edit." },
+        { status: 400 },
+      );
+    }
 
-  const email = booking.email.trim().toLowerCase();
+    const email = booking.email.trim().toLowerCase();
 
   if (
     !booking.id ||
@@ -144,7 +131,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ message: validationError }, { status: 400 });
   }
 
-  const bookings = await readBookings();
+    const bookings = await readBookings();
   const bookingIndex = bookings.findIndex((item) => item.id === booking.id);
 
   if (bookingIndex === -1) {
@@ -206,12 +193,18 @@ export async function PUT(request: NextRequest) {
     ...bookings.slice(bookingIndex + 1),
   ];
 
-  await writeBookings(updatedBookings);
+    await writeBookings(updatedBookings);
 
-  return NextResponse.json({
-    message: "Booking updated.",
-    bookings: updatedBookings.filter(isCompleteBooking),
-  });
+    return NextResponse.json({
+      message: "Booking updated.",
+      bookings: updatedBookings.filter(isCompleteBooking),
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { message: getStorageErrorMessage(error) },
+      { status: 500 },
+    );
+  }
 }
 
 export async function DELETE(request: NextRequest) {
@@ -219,25 +212,32 @@ export async function DELETE(request: NextRequest) {
     return unauthorizedResponse();
   }
 
-  const payload = (await request.json()) as {
-    id?: string;
-  };
-  const id = payload.id ?? "";
+  try {
+    const payload = (await request.json()) as {
+      id?: string;
+    };
+    const id = payload.id ?? "";
 
-  if (!id) {
+    if (!id) {
+      return NextResponse.json(
+        { message: "Choose a booking to remove." },
+        { status: 400 },
+      );
+    }
+
+    const bookings = await readBookings();
+    const updatedBookings = bookings.filter((booking) => booking.id !== id);
+
+    await writeBookings(updatedBookings);
+
+    return NextResponse.json({
+      message: "Booking removed.",
+      bookings: updatedBookings.filter(isCompleteBooking),
+    });
+  } catch (error) {
     return NextResponse.json(
-      { message: "Choose a booking to remove." },
-      { status: 400 },
+      { message: getStorageErrorMessage(error) },
+      { status: 500 },
     );
   }
-
-  const bookings = await readBookings();
-  const updatedBookings = bookings.filter((booking) => booking.id !== id);
-
-  await writeBookings(updatedBookings);
-
-  return NextResponse.json({
-    message: "Booking removed.",
-    bookings: updatedBookings.filter(isCompleteBooking),
-  });
 }

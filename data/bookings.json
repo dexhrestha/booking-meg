@@ -1,7 +1,7 @@
 [
   {
-    "id": "e93c80cd-562c-404d-bb9e-8e9dbc60627b",
-    "email": "dipesh.shrestha@unitn.it",
+    "id": "fff31388-bae8-49c3-a6af-1b8ad809bf2f",
+    "email": "s.dipesh5745@gmail.com",
     "firstSessionDate": "2026-06-01",
     "selections": {
       "session1": {
@@ -25,7 +25,6 @@
         "slot": "09:00 - 11:00"
       }
     },
-    "createdAt": "2026-05-24T15:52:07.963Z",
-    "updatedAt": "2026-05-24T15:52:50.363Z"
+    "createdAt": "2026-05-24T20:05:44.455Z"
   }
 ]

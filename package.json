@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:edge-config": "node scripts/test-edge-config.mjs"
   },
   "dependencies": {
+    "@vercel/edge-config": "^1.4.3",
     "next": "^16.2.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"

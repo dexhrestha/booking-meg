@@ -1,6 +1,4 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
 import {
   BookingEntry,
   BookingState,
@@ -15,30 +13,11 @@ import {
   slotKey,
   slotOptions,
 } from "@/lib/booking";
-
-const bookingsFile = path.join(process.cwd(), "data", "bookings.json");
-
-async function readBookings(): Promise<BookingEntry[]> {
-  try {
-    const file = await readFile(bookingsFile, "utf8");
-    return JSON.parse(file) as BookingEntry[];
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return [];
-    }
-
-    throw error;
-  }
-}
-
-async function writeBookings(bookings: BookingEntry[]) {
-  await mkdir(path.dirname(bookingsFile), { recursive: true });
-  await writeFile(bookingsFile, `${JSON.stringify(bookings, null, 2)}\n`);
-}
+import {
+  getStorageErrorMessage,
+  readBookings,
+  writeBookings,
+} from "@/lib/bookings-store";
 
 function isCompleteBooking(booking: BookingEntry) {
   return (
@@ -125,134 +104,154 @@ function validateSelections(selections: BookingState, firstSessionDate: string) 
 }
 
 export async function GET(request: NextRequest) {
-  const firstSessionDate = request.nextUrl.searchParams.get("firstSessionDate");
-  const email = request.nextUrl.searchParams.get("email")?.trim().toLowerCase();
-  const excludedBookingId =
-    request.nextUrl.searchParams.get("excludedBookingId") ?? undefined;
-  const view = request.nextUrl.searchParams.get("view");
-  const bookings = await readBookings();
-  const existingBooking = email ? getBookingForEmail(bookings, email) : null;
+  try {
+    const firstSessionDate =
+      request.nextUrl.searchParams.get("firstSessionDate");
+    const email = request.nextUrl.searchParams
+      .get("email")
+      ?.trim()
+      .toLowerCase();
+    const excludedBookingId =
+      request.nextUrl.searchParams.get("excludedBookingId") ?? undefined;
+    const view = request.nextUrl.searchParams.get("view");
+    const bookings = await readBookings();
+    const existingBooking = email ? getBookingForEmail(bookings, email) : null;
 
-  if (view === "all") {
-    return NextResponse.json({
-      bookings: bookings.filter(isCompleteBooking),
-    });
-  }
+    if (view === "all") {
+      return NextResponse.json({
+        bookings: bookings.filter(isCompleteBooking),
+      });
+    }
 
-  if (!firstSessionDate || !isAllowedFirstSessionDate(firstSessionDate)) {
+    if (!firstSessionDate || !isAllowedFirstSessionDate(firstSessionDate)) {
+      return NextResponse.json({
+        occupiedSlots: emptyOccupiedSlots(),
+        bookingCount: 0,
+        existingBooking,
+      });
+    }
+
     return NextResponse.json({
-      occupiedSlots: emptyOccupiedSlots(),
-      bookingCount: 0,
+      occupiedSlots: getOccupiedSlots(
+        bookings,
+        firstSessionDate,
+        excludedBookingId,
+      ),
+      bookingCount: bookings.filter(
+        (booking) => booking.firstSessionDate === firstSessionDate,
+      ).length,
       existingBooking,
     });
+  } catch (error) {
+    return NextResponse.json(
+      { message: getStorageErrorMessage(error) },
+      { status: 500 },
+    );
   }
-
-  return NextResponse.json({
-    occupiedSlots: getOccupiedSlots(
-      bookings,
-      firstSessionDate,
-      excludedBookingId,
-    ),
-    bookingCount: bookings.filter(
-      (booking) => booking.firstSessionDate === firstSessionDate,
-    ).length,
-    existingBooking,
-  });
 }
 
 export async function POST(request: NextRequest) {
-  const payload = (await request.json()) as {
-    email?: string;
-    firstSessionDate?: string;
-    selections?: BookingState;
-  };
-  const email = payload.email?.trim().toLowerCase() ?? "";
-  const firstSessionDate = payload.firstSessionDate ?? "";
-  const selections = payload.selections;
+  try {
+    const payload = (await request.json()) as {
+      email?: string;
+      firstSessionDate?: string;
+      selections?: BookingState;
+    };
+    const email = payload.email?.trim().toLowerCase() ?? "";
+    const firstSessionDate = payload.firstSessionDate ?? "";
+    const selections = payload.selections;
 
-  if (
-    !isValidEmail(email) ||
-    !isAllowedFirstSessionDate(firstSessionDate) ||
-    !selections
-  ) {
+    if (
+      !isValidEmail(email) ||
+      !isAllowedFirstSessionDate(firstSessionDate) ||
+      !selections
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            `Enter a valid email, choose a Monday or Tuesday date within the next 4 weeks through ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const validationError = validateSelections(selections, firstSessionDate);
+
+    if (validationError) {
+      return NextResponse.json({ message: validationError }, { status: 400 });
+    }
+
+    const bookings = await readBookings();
+    const existingBooking = getBookingForEmail(bookings, email);
+
+    if (existingBooking) {
+      return NextResponse.json(
+        {
+          message:
+            "This email already has a booking. The saved sessions have been loaded below for editing.",
+          existingBooking,
+          occupiedSlots: getOccupiedSlots(bookings, firstSessionDate),
+        },
+        { status: 409 },
+      );
+    }
+
+    const occupiedSlots = getOccupiedSlots(bookings, firstSessionDate);
+    const conflict = sessionConfigs.find((session) =>
+      occupiedSlots[session.id].includes(
+        slotKey(selections[session.id].date, selections[session.id].slot),
+      ),
+    );
+
+    if (conflict) {
+      const conflictSelection = selections[conflict.id];
+
+      return NextResponse.json(
+        {
+          message: `${conflict.title} on ${conflictSelection.day}, ${conflictSelection.date} at ${conflictSelection.slot} is already booked. Choose another slot.`,
+          occupiedSlots,
+        },
+        { status: 409 },
+      );
+    }
+
+    const booking: BookingEntry = {
+      id: crypto.randomUUID(),
+      email,
+      firstSessionDate,
+      selections,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedBookings = [...bookings, booking];
+    await writeBookings(updatedBookings);
+
     return NextResponse.json(
       {
         message:
-          `Enter a valid email, choose a Monday or Tuesday date within the next 4 weeks through ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
+          "Booking confirmed. Your selected MEG experiment slots have been saved.",
+        booking,
+        occupiedSlots: getOccupiedSlots(updatedBookings, firstSessionDate),
+        existingBooking: booking,
       },
-      { status: 400 },
+      { status: 201 },
     );
-  }
-
-  const validationError = validateSelections(selections, firstSessionDate);
-
-  if (validationError) {
-    return NextResponse.json({ message: validationError }, { status: 400 });
-  }
-
-  const bookings = await readBookings();
-  const existingBooking = getBookingForEmail(bookings, email);
-
-  if (existingBooking) {
+  } catch (error) {
     return NextResponse.json(
-      {
-        message:
-          "This email already has a booking. The saved sessions have been loaded below for editing.",
-        existingBooking,
-        occupiedSlots: getOccupiedSlots(bookings, firstSessionDate),
-      },
-      { status: 409 },
+      { message: getStorageErrorMessage(error) },
+      { status: 500 },
     );
   }
-
-  const occupiedSlots = getOccupiedSlots(bookings, firstSessionDate);
-  const conflict = sessionConfigs.find((session) =>
-    occupiedSlots[session.id].includes(
-      slotKey(selections[session.id].date, selections[session.id].slot),
-    ),
-  );
-
-  if (conflict) {
-    const conflictSelection = selections[conflict.id];
-
-    return NextResponse.json(
-      {
-        message: `${conflict.title} on ${conflictSelection.day}, ${conflictSelection.date} at ${conflictSelection.slot} is already booked. Choose another slot.`,
-        occupiedSlots,
-      },
-      { status: 409 },
-    );
-  }
-
-  const booking: BookingEntry = {
-    id: crypto.randomUUID(),
-    email,
-    firstSessionDate,
-    selections,
-    createdAt: new Date().toISOString(),
-  };
-
-  const updatedBookings = [...bookings, booking];
-  await writeBookings(updatedBookings);
-
-  return NextResponse.json(
-    {
-      message: "Booking confirmed. Your selected MEG experiment slots have been saved.",
-      booking,
-      occupiedSlots: getOccupiedSlots(updatedBookings, firstSessionDate),
-      existingBooking: booking,
-    },
-    { status: 201 },
-  );
 }
 
 export async function PUT(request: NextRequest) {
-  const payload = (await request.json()) as {
-    id?: string;
-    email?: string;
-    firstSessionDate?: string;
-    selections?: BookingState;
-  };
+  try {
+    const payload = (await request.json()) as {
+      id?: string;
+      email?: string;
+      firstSessionDate?: string;
+      selections?: BookingState;
+    };
   const id = payload.id ?? "";
   const email = payload.email?.trim().toLowerCase() ?? "";
   const firstSessionDate = payload.firstSessionDate ?? "";
@@ -328,12 +327,19 @@ export async function PUT(request: NextRequest) {
     booking.id,
   );
 
-  await writeBookings(updatedBookings);
+    await writeBookings(updatedBookings);
 
-  return NextResponse.json({
-    message: "Booking updated. Your selected MEG experiment slots have been saved.",
-    booking,
-    occupiedSlots: getOccupiedSlots(updatedBookings, firstSessionDate, id),
-    existingBooking: booking,
-  });
+    return NextResponse.json({
+      message:
+        "Booking updated. Your selected MEG experiment slots have been saved.",
+      booking,
+      occupiedSlots: getOccupiedSlots(updatedBookings, firstSessionDate, id),
+      existingBooking: booking,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { message: getStorageErrorMessage(error) },
+      { status: 500 },
+    );
+  }
 }
