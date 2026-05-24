@@ -1,0 +1,31 @@
+[
+  {
+    "id": "e93c80cd-562c-404d-bb9e-8e9dbc60627b",
+    "email": "dipesh.shrestha@unitn.it",
+    "firstSessionDate": "2026-06-01",
+    "selections": {
+      "session1": {
+        "day": "Monday",
+        "date": "2026-06-01",
+        "slot": "09:00 - 11:00"
+      },
+      "session2": {
+        "day": "Tuesday",
+        "date": "2026-06-02",
+        "slot": "09:00 - 11:00"
+      },
+      "session3": {
+        "day": "Wednesday",
+        "date": "2026-06-03",
+        "slot": "09:00 - 11:00"
+      },
+      "session4": {
+        "day": "Thursday",
+        "date": "2026-06-04",
+        "slot": "09:00 - 11:00"
+      }
+    },
+    "createdAt": "2026-05-24T15:52:07.963Z",
+    "updatedAt": "2026-05-24T15:52:50.363Z"
+  }
+]

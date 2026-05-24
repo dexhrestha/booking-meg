@@ -1,0 +1,706 @@
+:root {
+  color-scheme: light;
+  --background: #f6f3ee;
+  --surface: #ffffff;
+  --surface-soft: #f3f7f5;
+  --text: #15201c;
+  --muted: #5d6862;
+  --line: #d9ded8;
+  --accent: #0c766e;
+  --accent-dark: #075e58;
+  --accent-soft: #d7eeea;
+  --warning: #a33c1e;
+  --shadow: 0 20px 60px rgba(25, 39, 35, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background:
+    linear-gradient(180deg, rgba(215, 238, 234, 0.6), rgba(246, 243, 238, 0) 38%),
+    var(--background);
+  color: var(--text);
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.page-shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0 56px;
+}
+
+.experiment-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid rgba(12, 118, 110, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(120deg, rgba(12, 118, 110, 0.95), rgba(18, 93, 87, 0.88)),
+    url("/meg-banner.svg") center / cover;
+  box-shadow: var(--shadow);
+}
+
+.banner-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 720px;
+  padding: clamp(28px, 6vw, 64px);
+  color: #ffffff;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: currentColor;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.banner-copy h1,
+.form-header h2,
+.confirmation h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.banner-copy h1 {
+  font-size: clamp(2.15rem, 5vw, 4.8rem);
+  line-height: 1;
+}
+
+.banner-copy p {
+  max-width: 620px;
+  margin: 22px 0 0;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 1.06rem;
+  line-height: 1.65;
+}
+
+.banner-copy strong {
+  color: #ffffff;
+}
+
+.banner-info {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  padding: clamp(22px, 4vw, 42px);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.info-block {
+  border-left: 4px solid var(--accent);
+  padding-left: 14px;
+}
+
+.info-block h2 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.info-block ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.info-block li + li {
+  margin-top: 4px;
+}
+
+.banner-note,
+.banner-contact {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.banner-note {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  font-size: 0.95rem;
+}
+
+.banner-contact {
+  font-weight: 800;
+}
+
+.banner-contact a {
+  color: var(--accent-dark);
+}
+
+.booking-form,
+.confirmation {
+  margin-top: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 32px rgba(25, 39, 35, 0.08);
+}
+
+.booking-form {
+  padding: clamp(18px, 4vw, 32px);
+}
+
+.form-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px) minmax(260px, 340px);
+  gap: 24px;
+  align-items: end;
+  margin-bottom: 24px;
+}
+
+.form-header .eyebrow,
+.confirmation .eyebrow {
+  color: var(--accent);
+}
+
+.form-header h2,
+.confirmation h2 {
+  font-size: clamp(1.6rem, 3vw, 2.35rem);
+  line-height: 1.1;
+}
+
+.email-field,
+.date-field,
+.session-column label {
+  display: grid;
+  grid-template-rows: auto 46px auto;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.email-field::after {
+  content: "";
+  min-height: 1rem;
+}
+
+.email-field input,
+.date-field input,
+.session-column select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 12px;
+}
+
+.email-field input:focus,
+.date-field input:focus,
+.session-column select:focus,
+.slot-option:has(input:focus-visible) {
+  border-color: var(--accent);
+  outline: 3px solid rgba(12, 118, 110, 0.18);
+}
+
+.email-field input[aria-invalid="true"],
+.date-field input[aria-invalid="true"] {
+  border-color: var(--warning);
+}
+
+.date-field small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.popover {
+  position: relative;
+}
+
+.date-picker-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 46px;
+  align-items: center;
+  justify-content: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 12px;
+  text-align: left;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.date-picker-trigger::before {
+  content: "";
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  margin-right: 9px;
+  border: 2px solid currentColor;
+  border-top-width: 4px;
+  border-radius: 3px;
+}
+
+.date-picker-trigger:focus-visible {
+  border-color: var(--accent);
+  outline: 3px solid rgba(12, 118, 110, 0.18);
+}
+
+.popover-content {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(322px, calc(100vw - 40px));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+
+.calendar {
+  display: grid;
+  gap: 12px;
+}
+
+.calendar-header {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+}
+
+.calendar-header strong {
+  color: var(--text);
+  text-align: center;
+  font-size: 0.96rem;
+}
+
+.calendar-header button,
+.calendar-day {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.calendar-header button {
+  width: 36px;
+  height: 36px;
+  font-size: 1.35rem;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.calendar-weekdays span {
+  color: var(--muted);
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  min-width: 0;
+  font-weight: 800;
+}
+
+.calendar-header button:hover,
+.calendar-day:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.calendar-day[data-outside="true"] {
+  color: #a0a6a2;
+}
+
+.calendar-day[data-selected="true"] {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.calendar-day:disabled {
+  color: #c0c4c0;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.date-picker-note {
+  margin: 10px 2px 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.date-picker-note[data-invalid="true"] {
+  color: var(--warning);
+}
+
+.session-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.session-column {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 18px;
+}
+
+.session-column legend {
+  padding: 0 8px;
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.session-column p {
+  min-height: 22px;
+  margin: 4px 0 16px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.session-date {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 11px 12px;
+}
+
+.session-date span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.session-date strong {
+  color: var(--text);
+  font-size: 0.96rem;
+  line-height: 1.35;
+}
+
+.slot-group {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.slot-option {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 10px 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.slot-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.slot-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.slot-option:has(input:disabled) {
+  border-color: #e3e0da;
+  background: #f2f0ec;
+  color: #8d8f8a;
+  cursor: not-allowed;
+}
+
+.slot-option span {
+  overflow-wrap: anywhere;
+}
+
+.form-message {
+  margin: 18px 0 0;
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.form-message p {
+  margin: 0;
+}
+
+.form-message p + p {
+  margin-top: 6px;
+}
+
+.form-message.success {
+  color: var(--accent-dark);
+}
+
+.existing-bookings-inline {
+  margin-bottom: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfc;
+  padding: 18px;
+}
+
+.existing-bookings-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.existing-bookings-header {
+  justify-content: space-between;
+}
+
+.existing-bookings-inline h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.existing-bookings-header button,
+.secondary-button {
+  min-height: 40px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent-dark);
+  padding: 0 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.form-actions button {
+  min-height: 48px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #ffffff;
+  padding: 0 22px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.form-actions button:hover {
+  background: var(--accent-dark);
+}
+
+.form-actions button:disabled {
+  background: #9aa6a2;
+  cursor: not-allowed;
+}
+
+.form-actions .secondary-button {
+  background: var(--surface);
+  color: var(--accent-dark);
+}
+
+.confirmation {
+  padding: clamp(18px, 4vw, 28px);
+}
+
+.confirmation p {
+  margin: 8px 0 18px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.confirmation dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.confirmation div {
+  border-left: 4px solid var(--accent);
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.confirmation dt {
+  font-weight: 800;
+}
+
+.confirmation dd {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.bookings-admin {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+  padding: clamp(18px, 4vw, 32px);
+}
+
+.bookings-admin-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.bookings-admin-header h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.bookings-admin-header .eyebrow {
+  color: var(--accent);
+}
+
+.bookings-admin-header strong {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.bookings-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.bookings-table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.bookings-table th,
+.bookings-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 13px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.bookings-table th {
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.bookings-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.bookings-table td span,
+.bookings-table td strong {
+  display: block;
+}
+
+.bookings-table td span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.bookings-table td strong {
+  margin-top: 5px;
+}
+
+.empty-bookings {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 18px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+@media (max-width: 940px) {
+  .experiment-banner,
+  .form-header {
+    grid-template-columns: 1fr;
+  }
+
+  .session-grid,
+  .confirmation dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .page-shell {
+    width: min(100% - 20px, 1180px);
+    padding-top: 10px;
+  }
+
+  .experiment-banner,
+  .booking-form,
+  .confirmation {
+    border-radius: 6px;
+  }
+
+  .session-grid,
+  .confirmation dl {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+
+  .existing-bookings-header,
+  .bookings-admin-header,
+  .form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
