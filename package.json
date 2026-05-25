@@ -7,10 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:edge-config": "node scripts/test-edge-config.mjs"
+    "test:blob": "node scripts/test-blob.mjs"
   },
   "dependencies": {
-    "@vercel/edge-config": "^1.4.3",
+    "@vercel/blob": "^2.4.0",
     "next": "^16.2.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"

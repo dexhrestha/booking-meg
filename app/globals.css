@@ -47,16 +47,18 @@ select {
 }
 
 .experiment-banner {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
-  min-height: 420px;
+  display: block;
   overflow: hidden;
   border: 1px solid rgba(12, 118, 110, 0.18);
   border-radius: 8px;
-  background:
-    linear-gradient(120deg, rgba(12, 118, 110, 0.95), rgba(18, 93, 87, 0.88)),
-    url("/meg-banner.svg") center / cover;
+  background: #ffffff;
   box-shadow: var(--shadow);
+}
+
+.banner-image {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .banner-copy {

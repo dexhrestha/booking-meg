@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import flyerMegEng from "@/assets/flyer_MEG_eng.png";
 import {
   BookingEntry,
   BookingState,
@@ -268,63 +270,13 @@ export default function Home() {
 
   return (
     <main className="page-shell">
-      <section className="experiment-banner" aria-labelledby="experiment-title">
-        <div className="banner-copy">
-          <p className="eyebrow">Participants wanted</p>
-          <h1 id="experiment-title">MEG  long-term memory study</h1>
-          <p>
-            We are recruiting participants for a MEG neuroimaging study
-            investigating long-term memory.
-          </p>
-          <p>
-            The study involves <strong>four sessions on consecutive days</strong>.
-            The first session can start on <strong>Monday or Tuesday</strong>.
-            MEG recording will take place <strong>only on the last day</strong>;
-            the other sessions involve behavioural testing and eye tracking.
-          </p>
-        </div>
-        <div className="banner-info">
-          <div className="info-block">
-            <h2>Study details</h2>
-            <ul>
-              <li>Location: <a href="https://www.google.com/maps/place/Manifattura+Tabacchi/@45.883882,11.0209677,19.84z/data=!3m1!5s0x47820eebf255c703:0x9310c26ff1d463f0!4m15!1m8!3m7!1s0x47820eec769b393d:0x38d05401c42ac68c!2sPiazza+della+Manifattura,+38068+Rovereto+TN!3b1!8m2!3d45.8839355!4d11.0211871!16s%2Fg%2F11h094zqd!3m5!1s0x47820eec75c14bb1:0xb63ae4693b1d9caf!8m2!3d45.883857!4d11.0212476!16s%2Fg%2F11hzfvtxhz?entry=ttu&g_ep=EgoyMDI2MDUyMC4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener noreferrer">
-                Blg 10, Piazza Manifattura, Rovereto , TN
-              </a></li>
-              <li>Duration: <strong>~90</strong> minutes per session</li>
-              <li>Compensation: <strong>€78</strong> total</li>
-              <li>Task: Play virtual memory game</li>
-            </ul>
-          </div>
-          <div className="info-block">
-            <h2>Eligibility criteria</h2>
-            <ul>
-              <li>Age: 18 - 35</li>
-              <li>Normal or corrected-to-normal vision</li>
-              <li>No non-removable metal objects, dental implants, or other implants</li>
-
-              <li>No diagnosed neurological or psychological conditions</li>
-              <li>Good understanding of Italian or English</li>
-            </ul>
-          </div>
-          <div className="info-block">
-            <h2>Preferred</h2>
-            <ul>
-              <li>Right-handed</li>
-              <li>Previously participated in <strong>any</strong> MRI experiment at CIMeC.</li>
-            </ul>
-          </div>
-          <p className="banner-note">
-            Some MRI-compatible implants may not be compatible with MEG. We
-            will ask everyone who contacts us to confirm all eligibility
-            criteria.
-          </p>
-          <p className="banner-contact">
-            Questions:{" "}
-            <a href="mailto:dipesh.shrestha@unitn.it">
-              dipesh.shrestha@unitn.it
-            </a>
-          </p>
-        </div>
+      <section className="experiment-banner" aria-label="MEG study flyer">
+        <Image
+          src={flyerMegEng}
+          alt="MEG long-term memory study recruitment flyer"
+          className="banner-image"
+          priority
+        />
       </section>
 
       <form className="booking-form" onSubmit={handleSubmit}>

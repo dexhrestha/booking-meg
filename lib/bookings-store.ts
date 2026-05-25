@@ -1,108 +1,55 @@
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import { get } from "@vercel/edge-config";
+import { get, put } from "@vercel/blob";
 import { BookingEntry } from "@/lib/booking";
 
 const bookingsFile = path.join(process.cwd(), "data", "bookings.json");
-const bookingsKey = "bookings";
+const bookingsBlobPath = process.env.BLOB_BOOKINGS_PATH ?? "bookings.json";
 
-/**
- * Extract Edge Config ID from env
- */
-function getEdgeConfigId(): string {
-  const explicitId = process.env.EDGE_CONFIG_ID;
-  if (explicitId) return explicitId;
-
-  const connection = process.env.EDGE_CONFIG ?? "";
-  const match = connection.match(/\/([^/?]+)(?:\?|$)/);
-
-  return match?.[1] ?? "";
+function hasBlobToken() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
-/**
- * Build write config for Edge Config REST API
- */
-function getEdgeConfigWriteConfig() {
-  const edgeConfigId = getEdgeConfigId();
-  const token = process.env.VERCEL_API_TOKEN;
-
-  if (!edgeConfigId || !token) return null;
-
-  const params = new URLSearchParams();
-
-  if (process.env.VERCEL_TEAM_ID) {
-    params.set("teamId", process.env.VERCEL_TEAM_ID);
-  }
-
-  const query = params.toString();
-
-  return {
-    edgeConfigId,
-    token,
-    url: `https://api.vercel.com/v1/edge-config/${edgeConfigId}/items${
-      query ? `?${query}` : ""
-    }`,
-  };
+async function streamToText(stream: ReadableStream<Uint8Array>) {
+  return new Response(stream).text();
 }
 
-/**
- * READ from Edge Config (SDK - read-only)
- */
-async function readEdgeConfigBookings(): Promise<BookingEntry[]> {
-  const value = await get<BookingEntry[] | string | null>(bookingsKey);
+async function readBlobBookings(): Promise<BookingEntry[]> {
+  try {
+    const result = await get(bookingsBlobPath, { access: "private" });
 
-  if (!value) return [];
-
-  if (Array.isArray(value)) return value;
-
-  if (typeof value === "string") {
-    try {
-      return JSON.parse(value) as BookingEntry[];
-    } catch {
+    if (!result || result.statusCode !== 200) {
       return [];
     }
-  }
 
-  return [];
+    const text = await streamToText(result.stream);
+
+    if (!text.trim()) {
+      return [];
+    }
+
+    return JSON.parse(text) as BookingEntry[];
+  } catch (error) {
+    if (error instanceof Error && error.name === "BlobNotFoundError") {
+      return [];
+    }
+
+    throw error;
+  }
 }
 
-/**
- * WRITE to Edge Config (REST API)
- */
-async function writeEdgeConfigBookings(bookings: BookingEntry[]) {
-  const config = getEdgeConfigWriteConfig();
-
-  if (!config) {
-    throw new Error("Edge Config write not configured (missing token or ID).");
+async function writeBlobBookings(bookings: BookingEntry[]) {
+  if (!hasBlobToken()) {
+    throw new Error("Vercel Blob write not configured (missing BLOB_READ_WRITE_TOKEN).");
   }
 
-  const response = await fetch(config.url, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${config.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      items: [
-        {
-          operation: "upsert",
-          key: bookingsKey,
-          value: bookings,
-        },
-      ],
-    }),
-    cache: "no-store",
+  await put(bookingsBlobPath, JSON.stringify(bookings, null, 2) + "\n", {
+    access: "private",
+    allowOverwrite: true,
+    contentType: "application/json",
   });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`Edge Config write failed: ${text}`);
-  }
 }
 
-/**
- * LOCAL fallback read
- */
 async function readLocalBookings(): Promise<BookingEntry[]> {
   try {
     const file = await readFile(bookingsFile, "utf8");
@@ -113,54 +60,40 @@ async function readLocalBookings(): Promise<BookingEntry[]> {
   }
 }
 
-/**
- * LOCAL fallback write
- */
 async function writeLocalBookings(bookings: BookingEntry[]) {
   await mkdir(path.dirname(bookingsFile), { recursive: true });
   await writeFile(bookingsFile, JSON.stringify(bookings, null, 2) + "\n");
 }
 
-/**
- * PUBLIC READ API
- */
 export async function readBookings(): Promise<BookingEntry[]> {
-  if (process.env.EDGE_CONFIG) {
-    return readEdgeConfigBookings();
+  if (hasBlobToken()) {
+    return readBlobBookings();
   }
 
   return readLocalBookings();
 }
 
-/**
- * PUBLIC WRITE API
- */
 export async function writeBookings(bookings: BookingEntry[]) {
-  const writeConfig = getEdgeConfigWriteConfig();
-
-  if (writeConfig) {
-    await writeEdgeConfigBookings(bookings);
+  if (hasBlobToken()) {
+    await writeBlobBookings(bookings);
     return;
   }
 
   await writeLocalBookings(bookings);
 }
 
-/**
- * ERROR NORMALIZATION
- */
 export function getStorageErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     if ("code" in error) {
       const code = (error as any).code;
 
       if (["EROFS", "EACCES", "EPERM"].includes(code)) {
-        return "Storage is not writable in this environment. Configure Edge Config credentials.";
+        return "Storage is not writable in this environment. Configure Vercel Blob.";
       }
     }
 
-    if (error.message.includes("Edge Config")) {
-      return "Edge Config is not configured correctly. Check VERCEL_API_TOKEN and EDGE_CONFIG_ID.";
+    if (error.message.includes("Vercel Blob") || error.name.includes("Blob")) {
+      return "Vercel Blob is not configured correctly. Check BLOB_READ_WRITE_TOKEN.";
     }
   }
 
