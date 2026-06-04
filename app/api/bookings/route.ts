@@ -3,15 +3,19 @@ import {
   BookingEntry,
   BookingState,
   emptyOccupiedSlots,
+  formatDisplayDate,
+  getBookingTag,
+  getLatestFirstSessionDate,
   getSessionDate,
   getSessionDay,
-  getLatestFirstSessionDate,
-  formatDisplayDate,
+  getSlotOptions,
+  getStudyConfig,
+  getStudyTag,
   isAllowedFirstSessionDate,
   isValidEmail,
   sessionConfigs,
   slotKey,
-  slotOptions,
+  StudyTag,
 } from "@/lib/booking";
 import {
   getStorageErrorMessage,
@@ -19,10 +23,11 @@ import {
   writeBookings,
 } from "@/lib/bookings-store";
 
-function isCompleteBooking(booking: BookingEntry) {
-  return (
-    booking.id &&
-    booking.email &&
+function isCompleteBooking(booking: BookingEntry, tag?: StudyTag) {
+  return Boolean(
+    (!tag || getBookingTag(booking) === tag) &&
+      booking.id &&
+      booking.email &&
     booking.firstSessionDate &&
     booking.selections &&
     sessionConfigs.every((session) => {
@@ -32,7 +37,11 @@ function isCompleteBooking(booking: BookingEntry) {
   );
 }
 
-function getBookingForEmail(bookings: BookingEntry[], email: string) {
+function getBookingForEmail(
+  bookings: BookingEntry[],
+  email: string,
+  tag: StudyTag,
+) {
   if (!isValidEmail(email)) {
     return null;
   }
@@ -40,7 +49,7 @@ function getBookingForEmail(bookings: BookingEntry[], email: string) {
   return (
     bookings.find(
       (booking) =>
-        isCompleteBooking(booking) &&
+        isCompleteBooking(booking, tag) &&
         booking.email.toLowerCase() === email.toLowerCase(),
     ) ?? null
   );
@@ -49,11 +58,13 @@ function getBookingForEmail(bookings: BookingEntry[], email: string) {
 function removeExtraBookingsForEmail(
   bookings: BookingEntry[],
   email: string,
+  tag: StudyTag,
   keptBookingId: string,
 ) {
   return bookings.filter(
     (booking) =>
       booking.id === keptBookingId ||
+      getBookingTag(booking) !== tag ||
       booking.email.toLowerCase() !== email.toLowerCase(),
   );
 }
@@ -61,6 +72,7 @@ function removeExtraBookingsForEmail(
 function getOccupiedSlots(
   bookings: BookingEntry[],
   firstSessionDate: string,
+  tag: StudyTag,
   excludedBookingId?: string,
 ) {
   const occupied = emptyOccupiedSlots();
@@ -71,6 +83,10 @@ function getOccupiedSlots(
     }
 
     if (booking.firstSessionDate !== firstSessionDate) {
+      continue;
+    }
+
+    if (getBookingTag(booking) !== tag) {
       continue;
     }
 
@@ -86,7 +102,13 @@ function getOccupiedSlots(
   return occupied;
 }
 
-function validateSelections(selections: BookingState, firstSessionDate: string) {
+function validateSelections(
+  selections: BookingState,
+  firstSessionDate: string,
+  tag: StudyTag,
+) {
+  const slotOptions = getSlotOptions(tag);
+
   for (const session of sessionConfigs) {
     const selection = selections?.[session.id];
     const validDay =
@@ -105,6 +127,7 @@ function validateSelections(selections: BookingState, firstSessionDate: string) 
 
 export async function GET(request: NextRequest) {
   try {
+    const tag = getStudyTag(request.nextUrl.searchParams.get("tag"));
     const firstSessionDate =
       request.nextUrl.searchParams.get("firstSessionDate");
     const email = request.nextUrl.searchParams
@@ -115,11 +138,11 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get("excludedBookingId") ?? undefined;
     const view = request.nextUrl.searchParams.get("view");
     const bookings = await readBookings();
-    const existingBooking = email ? getBookingForEmail(bookings, email) : null;
+    const existingBooking = email ? getBookingForEmail(bookings, email, tag) : null;
 
     if (view === "all") {
       return NextResponse.json({
-        bookings: bookings.filter(isCompleteBooking),
+        bookings: bookings.filter((booking) => isCompleteBooking(booking)),
       });
     }
 
@@ -135,10 +158,13 @@ export async function GET(request: NextRequest) {
       occupiedSlots: getOccupiedSlots(
         bookings,
         firstSessionDate,
+        tag,
         excludedBookingId,
       ),
       bookingCount: bookings.filter(
-        (booking) => booking.firstSessionDate === firstSessionDate,
+        (booking) =>
+          getBookingTag(booking) === tag &&
+          booking.firstSessionDate === firstSessionDate,
       ).length,
       existingBooking,
     });
@@ -154,9 +180,12 @@ export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as {
       email?: string;
+      tag?: string;
       firstSessionDate?: string;
       selections?: BookingState;
     };
+    const tag = getStudyTag(payload.tag);
+    const study = getStudyConfig(tag);
     const email = payload.email?.trim().toLowerCase() ?? "";
     const firstSessionDate = payload.firstSessionDate ?? "";
     const selections = payload.selections;
@@ -175,14 +204,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validationError = validateSelections(selections, firstSessionDate);
+    const validationError = validateSelections(selections, firstSessionDate, tag);
 
     if (validationError) {
       return NextResponse.json({ message: validationError }, { status: 400 });
     }
 
     const bookings = await readBookings();
-    const existingBooking = getBookingForEmail(bookings, email);
+    const existingBooking = getBookingForEmail(bookings, email, tag);
 
     if (existingBooking) {
       return NextResponse.json(
@@ -190,13 +219,13 @@ export async function POST(request: NextRequest) {
           message:
             "This email already has a booking. The saved sessions have been loaded below for editing.",
           existingBooking,
-          occupiedSlots: getOccupiedSlots(bookings, firstSessionDate),
+          occupiedSlots: getOccupiedSlots(bookings, firstSessionDate, tag),
         },
         { status: 409 },
       );
     }
 
-    const occupiedSlots = getOccupiedSlots(bookings, firstSessionDate);
+    const occupiedSlots = getOccupiedSlots(bookings, firstSessionDate, tag);
     const conflict = sessionConfigs.find((session) =>
       occupiedSlots[session.id].includes(
         slotKey(selections[session.id].date, selections[session.id].slot),
@@ -217,6 +246,7 @@ export async function POST(request: NextRequest) {
 
     const booking: BookingEntry = {
       id: crypto.randomUUID(),
+      tag,
       email,
       firstSessionDate,
       selections,
@@ -229,9 +259,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message:
-          "Booking confirmed. Your selected MEG experiment slots have been saved.",
+          `Booking confirmed. Your selected ${study.confirmationSubject} slots have been saved.`,
         booking,
-        occupiedSlots: getOccupiedSlots(updatedBookings, firstSessionDate),
+        occupiedSlots: getOccupiedSlots(updatedBookings, firstSessionDate, tag),
         existingBooking: booking,
       },
       { status: 201 },
@@ -249,9 +279,12 @@ export async function PUT(request: NextRequest) {
     const payload = (await request.json()) as {
       id?: string;
       email?: string;
+      tag?: string;
       firstSessionDate?: string;
       selections?: BookingState;
     };
+  const tag = getStudyTag(payload.tag);
+  const study = getStudyConfig(tag);
   const id = payload.id ?? "";
   const email = payload.email?.trim().toLowerCase() ?? "";
   const firstSessionDate = payload.firstSessionDate ?? "";
@@ -272,7 +305,7 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  const validationError = validateSelections(selections, firstSessionDate);
+  const validationError = validateSelections(selections, firstSessionDate, tag);
 
   if (validationError) {
     return NextResponse.json({ message: validationError }, { status: 400 });
@@ -281,7 +314,9 @@ export async function PUT(request: NextRequest) {
   const bookings = await readBookings();
   const bookingIndex = bookings.findIndex(
     (booking) =>
-      booking.id === id && booking.email.toLowerCase() === email.toLowerCase(),
+      booking.id === id &&
+      getBookingTag(booking) === tag &&
+      booking.email.toLowerCase() === email.toLowerCase(),
   );
 
   if (bookingIndex === -1) {
@@ -291,7 +326,7 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  const occupiedSlots = getOccupiedSlots(bookings, firstSessionDate, id);
+  const occupiedSlots = getOccupiedSlots(bookings, firstSessionDate, tag, id);
   const conflict = sessionConfigs.find((session) =>
     occupiedSlots[session.id].includes(
       slotKey(selections[session.id].date, selections[session.id].slot),
@@ -312,6 +347,7 @@ export async function PUT(request: NextRequest) {
 
   const booking: BookingEntry = {
     ...bookings[bookingIndex],
+    tag,
     email,
     firstSessionDate,
     selections,
@@ -324,6 +360,7 @@ export async function PUT(request: NextRequest) {
       ...bookings.slice(bookingIndex + 1),
     ],
     email,
+    tag,
     booking.id,
   );
 
@@ -331,9 +368,9 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       message:
-        "Booking updated. Your selected MEG experiment slots have been saved.",
+        `Booking updated. Your selected ${study.confirmationSubject} slots have been saved.`,
       booking,
-      occupiedSlots: getOccupiedSlots(updatedBookings, firstSessionDate, id),
+      occupiedSlots: getOccupiedSlots(updatedBookings, firstSessionDate, tag, id),
       existingBooking: booking,
     });
   } catch (error) {

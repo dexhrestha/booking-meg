@@ -1,4 +1,5 @@
 export type SessionId = "session1" | "session2" | "session3" | "session4";
+export type StudyTag = "meg-study" | "sensorimotor-study";
 
 export type SessionConfig = {
   id: SessionId;
@@ -16,6 +17,7 @@ export type BookingState = Record<SessionId, SessionSelection>;
 
 export type BookingEntry = {
   id: string;
+  tag?: StudyTag;
   email: string;
   firstSessionDate: string;
   selections: BookingState;
@@ -24,6 +26,14 @@ export type BookingEntry = {
 };
 
 export type OccupiedSlots = Record<SessionId, string[]>;
+
+export type StudyConfig = {
+  tag: StudyTag;
+  title: string;
+  confirmationSubject: string;
+  flyerAlt: string;
+  slotOptions: string[];
+};
 
 export const sessionConfigs: SessionConfig[] = [
   {
@@ -48,13 +58,58 @@ export const sessionConfigs: SessionConfig[] = [
   },
 ];
 
-export const slotOptions = [
-  "09:00 - 11:00",
-  "11:00 - 13:00",
-  //break
-  "14:00 - 16:00",
-  "16:00 - 18:00",
-];
+export const studyConfigs: Record<StudyTag, StudyConfig> = {
+  "meg-study": {
+    tag: "meg-study",
+    title: "MEG experiment",
+    confirmationSubject: "MEG experiment",
+    flyerAlt: "MEG long-term memory study recruitment flyer",
+    slotOptions: [
+      "09:00 - 11:00",
+      "11:00 - 13:00",
+      "14:00 - 16:00",
+      "16:00 - 18:00",
+    ],
+  },
+  "sensorimotor-study": {
+    tag: "sensorimotor-study",
+    title: "Sensorimotor study",
+    confirmationSubject: "sensorimotor study",
+    flyerAlt: "Sensorimotor study recruitment flyer",
+    slotOptions: [
+      "08:00 - 09:00",
+      "09:00 - 10:00",
+      "10:00 - 11:00",
+      "11:00 - 12:00",
+      "12:00 - 13:00",
+      "14:00 - 15:00",
+      "15:00 - 16:00",
+      "16:00 - 17:00",
+      "17:00 - 18:00",
+      "18:00 - 19:00",
+    ],
+  },
+};
+
+export const defaultStudyTag: StudyTag = "meg-study";
+
+export const slotOptions = studyConfigs[defaultStudyTag].slotOptions;
+
+export function getStudyTag(tag?: string | null): StudyTag {
+  return tag === "sensorimotor-study" ? "sensorimotor-study" : defaultStudyTag;
+}
+
+export function getStudyConfig(tag?: string | null) {
+  return studyConfigs[getStudyTag(tag)];
+}
+
+export function getBookingTag(booking: Pick<BookingEntry, "tag">): StudyTag {
+  return getStudyTag(booking.tag);
+}
+
+export function getSlotOptions(tag?: string | null) {
+  return getStudyConfig(tag).slotOptions;
+}
 
 export const initialSelections = sessionConfigs.reduce((acc, session) => {
   acc[session.id] = {

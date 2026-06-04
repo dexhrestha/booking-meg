@@ -5,8 +5,10 @@ import {
   BookingEntry,
   buildSelectionsForStartDate,
   formatDisplayDate,
+  getBookingTag,
+  getSlotOptions,
+  getStudyConfig,
   sessionConfigs,
-  slotOptions,
 } from "@/lib/booking";
 
 type AdminResponse = {
@@ -178,6 +180,7 @@ export default function ViewBookingsPage() {
               <thead>
                 <tr>
                   <th>Email</th>
+                  <th>Study</th>
                   <th>First session</th>
                   {sessionConfigs.map((session) => (
                     <th key={session.id}>{session.title}</th>
@@ -189,6 +192,9 @@ export default function ViewBookingsPage() {
                 {bookings.map((booking) => {
                   const isEditing = editingBooking?.id === booking.id;
                   const rowBooking = isEditing ? editingBooking : booking;
+                  const rowTag = getBookingTag(rowBooking);
+                  const rowStudy = getStudyConfig(rowTag);
+                  const rowSlotOptions = getSlotOptions(rowTag);
 
                   return (
                     <tr key={booking.id}>
@@ -209,6 +215,7 @@ export default function ViewBookingsPage() {
                           booking.email
                         )}
                       </td>
+                      <td>{rowStudy.title}</td>
                       <td>
                         {isEditing ? (
                           <input
@@ -248,7 +255,7 @@ export default function ViewBookingsPage() {
                                 })
                               }
                             >
-                              {slotOptions.map((slot) => (
+                              {rowSlotOptions.map((slot) => (
                                 <option value={slot} key={slot}>
                                   {slot}
                                 </option>

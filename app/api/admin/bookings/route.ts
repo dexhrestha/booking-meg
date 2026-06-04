@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   BookingEntry,
   BookingState,
-  getLatestFirstSessionDate,
   formatDisplayDate,
+  getBookingTag,
+  getLatestFirstSessionDate,
   getSessionDate,
   getSessionDay,
+  getSlotOptions,
+  getStudyTag,
   isAllowedFirstSessionDate,
   isValidEmail,
   sessionConfigs,
-  slotOptions,
+  StudyTag,
 } from "@/lib/booking";
 import {
   getStorageErrorMessage,
@@ -40,10 +43,11 @@ function unauthorizedResponse() {
   );
 }
 
-function isCompleteBooking(booking: BookingEntry) {
-  return (
-    booking.id &&
-    booking.email &&
+function isCompleteBooking(booking: BookingEntry, tag?: StudyTag) {
+  return Boolean(
+    (!tag || getBookingTag(booking) === tag) &&
+      booking.id &&
+      booking.email &&
     booking.firstSessionDate &&
     booking.selections &&
     sessionConfigs.every((session) => {
@@ -53,7 +57,13 @@ function isCompleteBooking(booking: BookingEntry) {
   );
 }
 
-function validateSelections(selections: BookingState, firstSessionDate: string) {
+function validateSelections(
+  selections: BookingState,
+  firstSessionDate: string,
+  tag: StudyTag,
+) {
+  const slotOptions = getSlotOptions(tag);
+
   for (const session of sessionConfigs) {
     const selection = selections?.[session.id];
     const validDay =
@@ -79,7 +89,7 @@ export async function GET(request: NextRequest) {
     const bookings = await readBookings();
 
     return NextResponse.json({
-      bookings: bookings.filter(isCompleteBooking),
+      bookings: bookings.filter((booking) => isCompleteBooking(booking)),
     });
   } catch (error) {
     return NextResponse.json(
@@ -108,6 +118,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const email = booking.email.trim().toLowerCase();
+    const tag = getStudyTag(booking.tag);
 
   if (
     !booking.id ||
@@ -125,6 +136,7 @@ export async function PUT(request: NextRequest) {
   const validationError = validateSelections(
     booking.selections,
     booking.firstSessionDate,
+    tag,
   );
 
   if (validationError) {
@@ -143,7 +155,9 @@ export async function PUT(request: NextRequest) {
 
   const emailUsed = bookings.some(
     (item) =>
-      item.id !== booking.id && item.email.toLowerCase() === email.toLowerCase(),
+      item.id !== booking.id &&
+      getBookingTag(item) === tag &&
+      item.email.toLowerCase() === email.toLowerCase(),
   );
 
   if (emailUsed) {
@@ -160,6 +174,7 @@ export async function PUT(request: NextRequest) {
 
       return (
         item.id !== booking.id &&
+        getBookingTag(item) === tag &&
         item.firstSessionDate === booking.firstSessionDate &&
         existing?.date &&
         existing?.slot &&
@@ -182,6 +197,7 @@ export async function PUT(request: NextRequest) {
 
   const updatedBooking: BookingEntry = {
     ...bookings[bookingIndex],
+    tag,
     email,
     firstSessionDate: booking.firstSessionDate,
     selections: booking.selections,
@@ -197,7 +213,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       message: "Booking updated.",
-      bookings: updatedBookings.filter(isCompleteBooking),
+      bookings: updatedBookings.filter((booking) => isCompleteBooking(booking)),
     });
   } catch (error) {
     return NextResponse.json(
@@ -232,7 +248,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       message: "Booking removed.",
-      bookings: updatedBookings.filter(isCompleteBooking),
+      bookings: updatedBookings.filter((booking) => isCompleteBooking(booking)),
     });
   } catch (error) {
     return NextResponse.json(
