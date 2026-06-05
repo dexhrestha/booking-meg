@@ -4,12 +4,18 @@ import {
   BookingState,
   formatDisplayDate,
   getBookingTag,
+  getDayForDate,
+  getLatestBookingDate,
   getLatestFirstSessionDate,
   getSessionDate,
   getSessionDay,
   getSlotOptions,
   getStudyTag,
+  isAllowedSensorimotorFirstSessionDate,
   isAllowedFirstSessionDate,
+  isSameOrAfterDate,
+  isWithinSameWeek,
+  isWeekdayDate,
   isValidEmail,
   sessionConfigs,
   StudyTag,
@@ -66,15 +72,52 @@ function validateSelections(
 
   for (const session of sessionConfigs) {
     const selection = selections?.[session.id];
-    const validDay =
-      selection?.day === getSessionDay(firstSessionDate, session.dayOffset);
-    const validDate =
-      selection?.date === getSessionDate(firstSessionDate, session.dayOffset);
     const validSlot = slotOptions.includes(selection?.slot);
+    let validDay = false;
+    let validDate = false;
+
+    if (tag === "sensorimotor-study") {
+      validDay = selection?.day === getDayForDate(selection?.date ?? "");
+      validDate =
+        session.id === "session1"
+          ? isAllowedSensorimotorFirstSessionDate(selection?.date ?? "")
+          : isWithinSameWeek(selection?.date ?? "", selections.session1.date) &&
+            isWeekdayDate(selection?.date ?? "") &&
+            isSameOrAfterDate(
+              selection?.date ?? "",
+              selections[sessionConfigs[sessionConfigs.indexOf(session) - 1].id]
+                .date,
+            );
+    } else {
+      validDay =
+        selection?.day === getSessionDay(firstSessionDate, session.dayOffset);
+      validDate =
+        selection?.date === getSessionDate(firstSessionDate, session.dayOffset);
+    }
 
     if (!validDay || !validDate || !validSlot) {
       return `${session.title} has an invalid day, date, or slot.`;
     }
+  }
+
+  const duplicateSelection = sessionConfigs.find((session, index) =>
+    sessionConfigs.slice(0, index).some((previousSession) => {
+      const current = selections[session.id];
+      const previous = selections[previousSession.id];
+
+      return current.date === previous.date && current.slot === previous.slot;
+    }),
+  );
+
+  if (duplicateSelection) {
+    return `${duplicateSelection.title} uses a date and time already selected for an earlier session.`;
+  }
+
+  if (
+    tag === "sensorimotor-study" &&
+    selections.session1.date !== firstSessionDate
+  ) {
+    return "Session 1 date must match the booking start date.";
   }
 
   return "";
@@ -123,11 +166,16 @@ export async function PUT(request: NextRequest) {
   if (
     !booking.id ||
     !isValidEmail(email) ||
-    !isAllowedFirstSessionDate(booking.firstSessionDate)
+    (tag === "sensorimotor-study"
+      ? !isAllowedSensorimotorFirstSessionDate(booking.firstSessionDate)
+      : !isAllowedFirstSessionDate(booking.firstSessionDate))
   ) {
     return NextResponse.json(
       {
-        message: `Enter a valid email and a Monday or Tuesday first-session date within the next 4 weeks, through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
+        message:
+          tag === "sensorimotor-study"
+            ? `Enter a valid email, choose Session 1 on a Monday or Tuesday within the next 8 weeks through ${formatDisplayDate(getLatestBookingDate(8))}, and keep the remaining sessions on weekdays in that same week.`
+            : `Enter a valid email and a Monday or Tuesday first-session date within the next 4 weeks, through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
       },
       { status: 400 },
     );
@@ -175,11 +223,18 @@ export async function PUT(request: NextRequest) {
       return (
         item.id !== booking.id &&
         getBookingTag(item) === tag &&
-        item.firstSessionDate === booking.firstSessionDate &&
         existing?.date &&
         existing?.slot &&
-        existing.date === next.date &&
-        existing.slot === next.slot
+        next?.date &&
+        next?.slot &&
+        sessionConfigs.some((requestedSession) => {
+          const requested = booking.selections[requestedSession.id];
+
+          return (
+            existing.date === requested.date &&
+            existing.slot === requested.slot
+          );
+        })
       );
     }),
   );

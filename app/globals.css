@@ -175,6 +175,10 @@ select {
   margin-bottom: 24px;
 }
 
+.form-header-compact {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+}
+
 .form-header .eyebrow,
 .confirmation .eyebrow {
   color: var(--accent);
@@ -267,6 +271,12 @@ select {
 .date-picker-trigger:focus-visible {
   border-color: var(--accent);
   outline: 3px solid rgba(12, 118, 110, 0.18);
+}
+
+.date-picker-trigger:disabled {
+  background: #f2f0ec;
+  color: #8d8f8a;
+  cursor: not-allowed;
 }
 
 .popover-content {
@@ -402,6 +412,10 @@ select {
   border-radius: 6px;
   background: var(--surface);
   padding: 11px 12px;
+}
+
+.session-date-field {
+  margin-top: 14px;
 }
 
 .session-date span {

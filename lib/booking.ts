@@ -33,6 +33,7 @@ export type StudyConfig = {
   confirmationSubject: string;
   flyerAlt: string;
   slotOptions: string[];
+  dateSelectionMode: "first-session" | "per-session";
 };
 
 export const sessionConfigs: SessionConfig[] = [
@@ -64,6 +65,7 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
     title: "MEG experiment",
     confirmationSubject: "MEG experiment",
     flyerAlt: "MEG long-term memory study recruitment flyer",
+    dateSelectionMode: "first-session",
     slotOptions: [
       "09:00 - 11:00",
       "11:00 - 13:00",
@@ -76,6 +78,7 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
     title: "Sensorimotor study",
     confirmationSubject: "sensorimotor study",
     flyerAlt: "Sensorimotor study recruitment flyer",
+    dateSelectionMode: "per-session",
     slotOptions: [
       "08:00 - 09:00",
       "09:00 - 10:00",
@@ -146,13 +149,21 @@ function startOfToday() {
 }
 
 export function getLatestFirstSessionDate() {
+  return getLatestBookingDate(4);
+}
+
+export function getLatestBookingDate(weeks: number) {
   const latestDate = startOfToday();
-  latestDate.setDate(latestDate.getDate() + 28);
+  latestDate.setDate(latestDate.getDate() + weeks * 7);
 
   return formatIsoDate(latestDate);
 }
 
 export function isWithinBookingWindow(date: string) {
+  return isWithinBookingWindowWeeks(date, 4);
+}
+
+export function isWithinBookingWindowWeeks(date: string, weeks: number) {
   const parsedDate = parseIsoDate(date);
 
   if (!parsedDate) {
@@ -161,7 +172,7 @@ export function isWithinBookingWindow(date: string) {
 
   const today = startOfToday();
   const latestDate = startOfToday();
-  latestDate.setDate(today.getDate() + 28);
+  latestDate.setDate(today.getDate() + weeks * 7);
 
   return parsedDate >= today && parsedDate <= latestDate;
 }
@@ -171,6 +182,54 @@ export function isAllowedFirstSessionDate(date: string) {
   const weekday = parsedDate?.getDay();
 
   return (weekday === 1 || weekday === 2) && isWithinBookingWindow(date);
+}
+
+export function isAllowedSensorimotorFirstSessionDate(date: string) {
+  const parsedDate = parseIsoDate(date);
+  const weekday = parsedDate?.getDay();
+
+  return (
+    (weekday === 1 || weekday === 2) && isWithinBookingWindowWeeks(date, 8)
+  );
+}
+
+export function isWeekdayDate(date: string) {
+  const parsedDate = parseIsoDate(date);
+  const weekday = parsedDate?.getDay();
+
+  return Boolean(weekday && weekday >= 1 && weekday <= 5);
+}
+
+export function isSameOrAfterDate(date: string, comparisonDate: string) {
+  const parsedDate = parseIsoDate(date);
+  const parsedComparisonDate = parseIsoDate(comparisonDate);
+
+  if (!parsedDate || !parsedComparisonDate) {
+    return false;
+  }
+
+  return parsedDate > parsedComparisonDate;
+}
+
+export function isWithinSameWeek(date: string, weekDate: string) {
+  const parsedDate = parseIsoDate(date);
+  const parsedWeekDate = parseIsoDate(weekDate);
+
+  if (!parsedDate || !parsedWeekDate) {
+    return false;
+  }
+
+  const weekStart = new Date(parsedWeekDate);
+  const weekday = weekStart.getDay();
+  const daysSinceMonday = weekday === 0 ? 6 : weekday - 1;
+  weekStart.setDate(weekStart.getDate() - daysSinceMonday);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+
+  return parsedDate >= weekStart && parsedDate <= weekEnd;
 }
 
 export function getSessionDate(firstSessionDate: string, dayOffset: number) {
@@ -187,7 +246,11 @@ export function getSessionDate(firstSessionDate: string, dayOffset: number) {
 
 export function getSessionDay(firstSessionDate: string, dayOffset: number) {
   const sessionDate = getSessionDate(firstSessionDate, dayOffset);
-  const parsedDate = parseIsoDate(sessionDate);
+  return getDayForDate(sessionDate);
+}
+
+export function getDayForDate(date: string) {
+  const parsedDate = parseIsoDate(date);
 
   if (!parsedDate) {
     return "";

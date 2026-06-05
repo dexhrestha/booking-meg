@@ -8,9 +8,15 @@ import {
   buildSelectionsForStartDate,
   emptyOccupiedSlots,
   formatDisplayDate,
+  getDayForDate,
+  getLatestBookingDate,
   getLatestFirstSessionDate,
   initialSelections,
+  isAllowedSensorimotorFirstSessionDate,
   isAllowedFirstSessionDate,
+  isSameOrAfterDate,
+  isWithinSameWeek,
+  isWeekdayDate,
   isValidEmail,
   OccupiedSlots,
   SessionId,
@@ -36,6 +42,14 @@ async function parseJsonResponse<T>(response: Response) {
   return JSON.parse(text) as T;
 }
 
+function dateToIso(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   const [email, setEmail] = useState("");
   const [firstSessionDate, setFirstSessionDate] = useState("");
@@ -50,6 +64,10 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
+  const usesPerSessionDates = study.dateSelectionMode === "per-session";
+  const selectedDateKey = sessionConfigs
+    .map((session) => selections[session.id].date)
+    .join("|");
 
   const missingSlots = useMemo(
     () =>
@@ -69,11 +87,39 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   );
 
   const emailLooksValid = isValidEmail(email);
-  const startDateSelected = isAllowedFirstSessionDate(firstSessionDate);
+  const startDateSelected = usesPerSessionDates
+    ? isAllowedSensorimotorFirstSessionDate(selections.session1.date)
+    : isAllowedFirstSessionDate(firstSessionDate);
+  const missingDates = useMemo(
+    () =>
+      usesPerSessionDates
+        ? sessionConfigs.filter(
+            (session, index) =>
+              session.id === "session1"
+                ? !isAllowedSensorimotorFirstSessionDate(
+                    selections[session.id].date,
+                  )
+                : !isWithinSameWeek(
+                    selections[session.id].date,
+                    selections.session1.date,
+                  ) ||
+                  !isWeekdayDate(selections[session.id].date) ||
+                  !isSameOrAfterDate(
+                    selections[session.id].date,
+                    selections[sessionConfigs[index - 1].id].date,
+                  ),
+          )
+        : [],
+    [selections, usesPerSessionDates],
+  );
   const latestBookingDate = formatDisplayDate(getLatestFirstSessionDate());
+  const latestSensorimotorBookingDate = formatDisplayDate(getLatestBookingDate(8));
   const validationMessages: string[] = [
-    !startDateSelected
+    !usesPerSessionDates && !startDateSelected
       ? `Choose a Monday or Tuesday for the first session within the next 4 weeks, through ${latestBookingDate}.`
+      : "",
+    usesPerSessionDates && missingDates.length > 0
+      ? `Choose Session 1 on a Monday or Tuesday within 8 weeks, then keep Sessions 2-4 on weekdays in that same week, on or after the previous session date.`
       : "",
     !emailLooksValid ? "Enter a valid email address." : "",
     missingSlots.length > 0
@@ -83,6 +129,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   const formIsComplete =
     emailLooksValid &&
     startDateSelected &&
+    missingDates.length === 0 &&
     missingSlots.length === 0 &&
     unavailableSelections.length === 0;
 
@@ -96,7 +143,19 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
       const params = new URLSearchParams({ tag: study.tag });
 
-      if (startDateSelected) {
+      if (usesPerSessionDates) {
+        sessionConfigs.forEach((session) => {
+          const date = selections[session.id].date;
+
+          if (date) {
+            params.set(`${session.id}Date`, date);
+          }
+        });
+
+        if (selections.session1.date) {
+          params.set("firstSessionDate", selections.session1.date);
+        }
+      } else if (startDateSelected) {
         params.set("firstSessionDate", firstSessionDate);
       }
 
@@ -138,8 +197,10 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     email,
     emailLooksValid,
     firstSessionDate,
+    selectedDateKey,
     startDateSelected,
     study.tag,
+    usesPerSessionDates,
   ]);
 
   function updateSelection(
@@ -154,6 +215,27 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
         [field]: value,
       },
     }));
+  }
+
+  function clearLaterSessions(
+    current: BookingState,
+    startIndex: number,
+    keepStartDate: boolean,
+  ) {
+    const next = { ...current };
+
+    for (let index = startIndex; index < sessionConfigs.length; index += 1) {
+      const session = sessionConfigs[index];
+      const existing = next[session.id];
+
+      next[session.id] = {
+        day: index === startIndex && keepStartDate ? existing.day : "",
+        date: index === startIndex && keepStartDate ? existing.date : "",
+        slot: "",
+      };
+    }
+
+    return next;
   }
 
   function handleFirstSessionDateChange(value: string) {
@@ -182,6 +264,98 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       setEditingBookingId("");
       setMessage("");
     }
+  }
+
+  function isSessionDateUnavailable(date: Date, sessionIndex: number) {
+    const isoDate = dateToIso(date);
+    const previousSession = sessionConfigs[sessionIndex - 1];
+
+    if (sessionIndex === 0) {
+      return !isAllowedSensorimotorFirstSessionDate(isoDate);
+    }
+
+    if (!previousSession || !selections.session1.date) {
+      return true;
+    }
+
+    return (
+      !isWithinSameWeek(isoDate, selections.session1.date) ||
+      !isWeekdayDate(isoDate) ||
+      !isSameOrAfterDate(isoDate, selections[previousSession.id].date)
+    );
+  }
+
+  function handleSessionDateChange(sessionId: SessionId, value: string) {
+    const sessionIndex = sessionConfigs.findIndex(
+      (session) => session.id === sessionId,
+    );
+
+    setTouched(true);
+    setBooking(null);
+
+    if (
+      sessionId === "session1" &&
+      !isAllowedSensorimotorFirstSessionDate(value)
+    ) {
+      setMessage(
+        `Choose Session 1 on a Monday or Tuesday within the next 8 weeks, through ${latestSensorimotorBookingDate}.`,
+      );
+      return;
+    }
+
+    if (
+      sessionId !== "session1" &&
+      (!isWithinSameWeek(value, selections.session1.date) ||
+        !isWeekdayDate(value) ||
+        !isSameOrAfterDate(
+          value,
+          selections[sessionConfigs[sessionIndex - 1].id].date,
+        ))
+    ) {
+      setMessage(
+        "Choose a weekday in the same week, on or after the previous session date.",
+      );
+      return;
+    }
+
+    setMessage("");
+    setSelections((current) => {
+      const next = clearLaterSessions(current, sessionIndex, true);
+
+      next[sessionId] = {
+        day: getDayForDate(value),
+        date: value,
+        slot: "",
+      };
+
+      return next;
+    });
+
+    if (sessionId === "session1") {
+      setFirstSessionDate(value);
+    }
+  }
+
+  function handleSlotChange(sessionId: SessionId, value: string) {
+    if (!usesPerSessionDates) {
+      updateSelection(sessionId, "slot", value);
+      return;
+    }
+
+    const sessionIndex = sessionConfigs.findIndex(
+      (session) => session.id === sessionId,
+    );
+
+    setSelections((current) => {
+      const next = clearLaterSessions(current, sessionIndex, true);
+
+      next[sessionId] = {
+        ...next[sessionId],
+        slot: value,
+      };
+
+      return next;
+    });
   }
 
   function loadExistingBooking(existingBooking: BookingEntry) {
@@ -229,7 +403,9 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
           id: editingBookingId || undefined,
           tag: study.tag,
           email: email.trim().toLowerCase(),
-          firstSessionDate,
+          firstSessionDate: usesPerSessionDates
+            ? selections.session1.date
+            : firstSessionDate,
           selections,
         }),
       });
@@ -284,24 +460,34 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       </section>
 
       <form className="booking-form" onSubmit={handleSubmit}>
-        <div className="form-header">
+        <div
+          className={
+            usesPerSessionDates
+              ? "form-header form-header-compact"
+              : "form-header"
+          }
+        >
           <div>
             <p className="eyebrow">Booking details</p>
             <h2>Choose your session slots</h2>
           </div>
-          <label className="date-field">
-            <span>First session date</span>
-            <FirstSessionDatePicker
-              value={firstSessionDate}
-              onChange={handleFirstSessionDateChange}
-              onBlur={() => setTouched(true)}
-              invalid={touched && firstSessionDate !== "" && !startDateSelected}
-            />
-            <small>
-              Session 1 must start on a Monday or Tuesday within the next 4
-              weeks.
-            </small>
-          </label>
+          {!usesPerSessionDates ? (
+            <label className="date-field">
+              <span>First session date</span>
+              <FirstSessionDatePicker
+                value={firstSessionDate}
+                onChange={handleFirstSessionDateChange}
+                onBlur={() => setTouched(true)}
+                invalid={
+                  touched && firstSessionDate !== "" && !startDateSelected
+                }
+              />
+              <small>
+                Session 1 must start on a Monday or Tuesday within the next 4
+                weeks.
+              </small>
+            </label>
+          ) : null}
           <label className="email-field">
             <span>Email address</span>
             <input
@@ -338,55 +524,132 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
         ) : null}
 
         <div className="session-grid">
-          {sessionConfigs.map((session) => (
-            <fieldset className="session-column" key={session.id}>
-              <legend>{session.title}</legend>
-              <p>Consecutive session day</p>
+          {sessionConfigs.map((session, sessionIndex) => {
+            const previousSession = sessionConfigs[sessionIndex - 1];
+            const sessionUnlocked =
+              !usesPerSessionDates ||
+              !previousSession ||
+              Boolean(
+                selections[previousSession.id].date &&
+                  selections[previousSession.id].slot,
+              );
+            const selectedDate = selections[session.id].date;
+            const slotPickerEnabled = usesPerSessionDates
+              ? sessionUnlocked && Boolean(selectedDate)
+              : startDateSelected;
 
-              {startDateSelected ? (
-                <div className="session-date">
-                  <span>Day and date</span>
-                  <strong>
-                    {formatDisplayDate(selections[session.id].date)}
-                  </strong>
+            return (
+              <fieldset className="session-column" key={session.id}>
+                <legend>{session.title}</legend>
+                <p>
+                  {usesPerSessionDates
+                    ? "Choose date, then time"
+                    : "Consecutive session day"}
+                </p>
+
+                {usesPerSessionDates ? (
+                  <label className="date-field session-date-field">
+                    <span>Session date</span>
+                    <FirstSessionDatePicker
+                      value={selectedDate}
+                      onChange={(value) =>
+                        handleSessionDateChange(session.id, value)
+                      }
+                      onBlur={() => setTouched(true)}
+                      invalid={
+                        touched &&
+                        selectedDate !== "" &&
+                        (session.id === "session1"
+                          ? !isAllowedSensorimotorFirstSessionDate(selectedDate)
+                          : !isWithinSameWeek(
+                              selectedDate,
+                              selections.session1.date,
+                            ) ||
+                            !isWeekdayDate(selectedDate) ||
+                            !isSameOrAfterDate(
+                              selectedDate,
+                              selections[sessionConfigs[sessionIndex - 1].id]
+                                .date,
+                            ))
+                      }
+                      disabled={!sessionUnlocked}
+                      isDateUnavailable={(date) =>
+                        isSessionDateUnavailable(date, sessionIndex)
+                      }
+                      note={
+                        session.id === "session1"
+                          ? `Select a Monday or Tuesday within the next 8 weeks, through ${latestSensorimotorBookingDate}.`
+                          : "Select a weekday in the same week, on or after the previous session date."
+                      }
+                      placeholder={
+                        sessionUnlocked
+                          ? "Pick a date"
+                          : "Complete previous session"
+                      }
+                    />
+                    <small>
+                      {sessionUnlocked
+                        ? "Time slots update after a date is selected."
+                        : "Choose the previous session date and time first."}
+                    </small>
+                  </label>
+                ) : startDateSelected ? (
+                  <div className="session-date">
+                    <span>Day and date</span>
+                    <strong>
+                      {formatDisplayDate(selections[session.id].date)}
+                    </strong>
+                  </div>
+                ) : null}
+
+                <div className="slot-group" role="radiogroup">
+                  {study.slotOptions.map((slot) => {
+                    const inputId = `${study.tag}-${session.id}-${slot}`;
+                    const isBooked = occupiedSlots[session.id].includes(
+                      slotKey(selections[session.id].date, slot),
+                    );
+                    const isSelectedEarlier =
+                      usesPerSessionDates &&
+                      sessionConfigs
+                        .slice(0, sessionIndex)
+                        .some(
+                          (previous) =>
+                            selections[previous.id].date === selectedDate &&
+                            selections[previous.id].slot === slot,
+                        );
+
+                    return (
+                      <label
+                        className="slot-option"
+                        htmlFor={inputId}
+                        key={slot}
+                      >
+                        <input
+                          id={inputId}
+                          type="radio"
+                          name={session.id}
+                          value={slot}
+                          checked={selections[session.id].slot === slot}
+                          onChange={(event) =>
+                            handleSlotChange(session.id, event.target.value)
+                          }
+                          disabled={
+                            !slotPickerEnabled || isBooked || isSelectedEarlier
+                          }
+                          required
+                        />
+                        <span>
+                          {slot}
+                          {isBooked ? " booked" : ""}
+                          {!isBooked && isSelectedEarlier ? " selected" : ""}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
-              ) : null}
-
-              <div className="slot-group" role="radiogroup">
-                {study.slotOptions.map((slot) => {
-                  const inputId = `${study.tag}-${session.id}-${slot}`;
-                  const isBooked = occupiedSlots[session.id].includes(
-                    slotKey(selections[session.id].date, slot),
-                  );
-
-                  return (
-                    <label className="slot-option" htmlFor={inputId} key={slot}>
-                      <input
-                        id={inputId}
-                        type="radio"
-                        name={session.id}
-                        value={slot}
-                        checked={selections[session.id].slot === slot}
-                        onChange={(event) =>
-                          updateSelection(
-                            session.id,
-                            "slot",
-                            event.target.value,
-                          )
-                        }
-                        disabled={!startDateSelected || isBooked}
-                        required
-                      />
-                      <span>
-                        {slot}
-                        {isBooked ? " booked" : ""}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
-          ))}
+              </fieldset>
+            );
+          })}
         </div>
 
         {touched && validationMessages.length > 0 ? (

@@ -18,6 +18,10 @@ type FirstSessionDatePickerProps = {
   onChange: (value: string) => void;
   onBlur: () => void;
   invalid: boolean;
+  disabled?: boolean;
+  isDateUnavailable?: (date: Date) => boolean;
+  note?: string;
+  placeholder?: string;
 };
 
 function dateFromIso(value: string) {
@@ -51,13 +55,17 @@ export function FirstSessionDatePicker({
   onChange,
   onBlur,
   invalid,
+  disabled = false,
+  isDateUnavailable = isUnavailableFirstSessionDate,
+  note = `Select a Monday or Tuesday within the next 4 weeks, through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
+  placeholder = "Pick a date",
 }: FirstSessionDatePickerProps) {
   const selectedDate = dateFromIso(value);
 
   return (
     <Popover>
-      <PopoverTrigger>
-        <span>{value ? formatDisplayDate(value) : "Pick a date"}</span>
+      <PopoverTrigger disabled={disabled}>
+        <span>{value ? formatDisplayDate(value) : placeholder}</span>
       </PopoverTrigger>
       <PopoverContent>
         <DatePickerCalendar
@@ -65,6 +73,8 @@ export function FirstSessionDatePicker({
           onChange={onChange}
           onBlur={onBlur}
           invalid={invalid}
+          isDateUnavailable={isDateUnavailable}
+          note={note}
         />
       </PopoverContent>
     </Popover>
@@ -76,11 +86,15 @@ function DatePickerCalendar({
   onChange,
   onBlur,
   invalid,
+  isDateUnavailable,
+  note,
 }: {
   selectedDate?: Date;
   onChange: (value: string) => void;
   onBlur: () => void;
   invalid: boolean;
+  isDateUnavailable: (date: Date) => boolean;
+  note: string;
 }) {
   const { setOpen } = usePopover();
 
@@ -97,11 +111,10 @@ function DatePickerCalendar({
           onBlur();
           setOpen(false);
         }}
-        disabled={isUnavailableFirstSessionDate}
+        disabled={isDateUnavailable}
       />
       <p className="date-picker-note" data-invalid={invalid}>
-        Select a Monday or Tuesday within the next 4 weeks, through{" "}
-        {formatDisplayDate(getLatestFirstSessionDate())}.
+        {note}
       </p>
     </>
   );

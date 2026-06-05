@@ -53,7 +53,13 @@ export function Popover({ children }: { children: ReactNode }) {
   );
 }
 
-export function PopoverTrigger({ children }: { children: ReactNode }) {
+export function PopoverTrigger({
+  children,
+  disabled = false,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+}) {
   const { open, setOpen } = usePopover();
 
   return (
@@ -61,6 +67,7 @@ export function PopoverTrigger({ children }: { children: ReactNode }) {
       type="button"
       className="date-picker-trigger"
       aria-expanded={open}
+      disabled={disabled}
       onClick={() => setOpen(!open)}
     >
       {children}
