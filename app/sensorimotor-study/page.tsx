@@ -1,4 +1,4 @@
-import flyerSpeedEng from "@/assets/flyer_speed_eng.png";
+import flyerSpeedEng from "@/assets/flyer_ita_speed.png";
 import { StudyBookingPage } from "@/components/study-booking-page";
 import { studyConfigs } from "@/lib/booking";
 
