@@ -623,6 +623,45 @@ select {
   white-space: nowrap;
 }
 
+.bookings-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.bookings-controls label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.bookings-controls select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+}
+
+.bookings-controls p {
+  min-height: 40px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .bookings-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
@@ -743,6 +782,10 @@ select {
     grid-template-columns: 1fr;
   }
 
+  .bookings-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .session-grid,
   .confirmation dl {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -773,12 +816,14 @@ select {
   .existing-bookings-header,
   .bookings-admin-header,
   .admin-password-form,
+  .bookings-controls,
   .form-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .admin-password-form {
+  .admin-password-form,
+  .bookings-controls {
     grid-template-columns: 1fr;
   }
 }
