@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  BlockedSlotEntry,
   BookingEntry,
   BookingState,
   emptyOccupiedSlots,
   formatDisplayDate,
+  getBlockedSlotTag,
   getBookingTag,
   getDayForDate,
   getLatestBookingDate,
@@ -26,6 +28,7 @@ import {
 } from "@/lib/booking";
 import {
   getStorageErrorMessage,
+  readBlockedSlots,
   readBookings,
   writeBookings,
 } from "@/lib/bookings-store";
@@ -80,6 +83,7 @@ function removeExtraBookingsForEmail(
 
 function getOccupiedSlots(
   bookings: BookingEntry[],
+  blockedSlots: BlockedSlotEntry[],
   tag: StudyTag,
   sessionDates: SessionDateLookup,
   excludedBookingId?: string,
@@ -108,6 +112,20 @@ function getOccupiedSlots(
         if (selection?.date === requestedDate && selection.slot) {
           occupied[session.id].push(slotKey(requestedDate, selection.slot));
         }
+      }
+    }
+  }
+
+  for (const blockedSlot of blockedSlots) {
+    if (getBlockedSlotTag(blockedSlot) !== tag) {
+      continue;
+    }
+
+    for (const session of sessionConfigs) {
+      const requestedDate = sessionDates[session.id];
+
+      if (requestedDate === blockedSlot.date) {
+        occupied[session.id].push(slotKey(blockedSlot.date, blockedSlot.slot));
       }
     }
   }
@@ -219,6 +237,7 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get("excludedBookingId") ?? undefined;
     const view = request.nextUrl.searchParams.get("view");
     const bookings = await readBookings();
+    const blockedSlots = await readBlockedSlots();
     const existingBooking = email ? getBookingForEmail(bookings, email, tag) : null;
 
     if (view === "all") {
@@ -251,6 +270,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       occupiedSlots: getOccupiedSlots(
         bookings,
+        blockedSlots,
         tag,
         sessionDates,
         excludedBookingId,
@@ -309,6 +329,7 @@ export async function POST(request: NextRequest) {
     }
 
     const bookings = await readBookings();
+    const blockedSlots = await readBlockedSlots();
     const existingBooking = getBookingForEmail(bookings, email, tag);
 
     if (existingBooking) {
@@ -319,6 +340,7 @@ export async function POST(request: NextRequest) {
           existingBooking,
           occupiedSlots: getOccupiedSlots(
             bookings,
+            blockedSlots,
             tag,
             getSessionDatesForSelections(selections),
           ),
@@ -328,7 +350,12 @@ export async function POST(request: NextRequest) {
     }
 
     const selectedSessionDates = getSessionDatesForSelections(selections);
-    const occupiedSlots = getOccupiedSlots(bookings, tag, selectedSessionDates);
+    const occupiedSlots = getOccupiedSlots(
+      bookings,
+      blockedSlots,
+      tag,
+      selectedSessionDates,
+    );
     const conflict = sessionConfigs.find((session) =>
       occupiedSlots[session.id].includes(
         slotKey(selections[session.id].date, selections[session.id].slot),
@@ -340,7 +367,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          message: `${conflict.title} on ${conflictSelection.day}, ${conflictSelection.date} at ${conflictSelection.slot} is already booked. Choose another slot.`,
+          message: `${conflict.title} on ${conflictSelection.day}, ${conflictSelection.date} at ${conflictSelection.slot} is unavailable. Choose another slot.`,
           occupiedSlots,
         },
         { status: 409 },
@@ -366,6 +393,7 @@ export async function POST(request: NextRequest) {
         booking,
         occupiedSlots: getOccupiedSlots(
           updatedBookings,
+          blockedSlots,
           tag,
           selectedSessionDates,
         ),
@@ -423,6 +451,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const bookings = await readBookings();
+  const blockedSlots = await readBlockedSlots();
   const bookingIndex = bookings.findIndex(
     (booking) =>
       booking.id === id &&
@@ -438,7 +467,13 @@ export async function PUT(request: NextRequest) {
   }
 
   const selectedSessionDates = getSessionDatesForSelections(selections);
-  const occupiedSlots = getOccupiedSlots(bookings, tag, selectedSessionDates, id);
+  const occupiedSlots = getOccupiedSlots(
+    bookings,
+    blockedSlots,
+    tag,
+    selectedSessionDates,
+    id,
+  );
   const conflict = sessionConfigs.find((session) =>
     occupiedSlots[session.id].includes(
       slotKey(selections[session.id].date, selections[session.id].slot),
@@ -450,7 +485,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: `${conflict.title} on ${conflictSelection.day}, ${conflictSelection.date} at ${conflictSelection.slot} is already booked. Choose another slot.`,
+        message: `${conflict.title} on ${conflictSelection.day}, ${conflictSelection.date} at ${conflictSelection.slot} is unavailable. Choose another slot.`,
         occupiedSlots,
       },
       { status: 409 },
@@ -484,6 +519,7 @@ export async function PUT(request: NextRequest) {
       booking,
       occupiedSlots: getOccupiedSlots(
         updatedBookings,
+        blockedSlots,
         tag,
         selectedSessionDates,
         id,

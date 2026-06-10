@@ -2,18 +2,22 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import {
+  BlockedSlotEntry,
   BookingEntry,
   StudyTag,
   buildSelectionsForStartDate,
   formatDisplayDate,
   getBookingTag,
+  getBlockedSlotTag,
   getSlotOptions,
   getStudyConfig,
   sessionConfigs,
+  studyConfigs,
 } from "@/lib/booking";
 
 type AdminResponse = {
   bookings?: BookingEntry[];
+  blockedSlots?: BlockedSlotEntry[];
   message?: string;
 };
 
@@ -103,6 +107,13 @@ function compareFirstSessionDates(
 export default function ViewBookingsPage() {
   const [password, setPassword] = useState("");
   const [bookings, setBookings] = useState<BookingEntry[]>([]);
+  const [blockedSlots, setBlockedSlots] = useState<BlockedSlotEntry[]>([]);
+  const [blockStudy, setBlockStudy] = useState<StudyTag>("meg-study");
+  const [blockDate, setBlockDate] = useState("");
+  const [blockSlot, setBlockSlot] = useState(
+    studyConfigs["meg-study"].slotOptions[0],
+  );
+  const [blockNote, setBlockNote] = useState("");
   const [editingBooking, setEditingBooking] = useState<BookingEntry | null>(
     null,
   );
@@ -132,7 +143,7 @@ export default function ViewBookingsPage() {
   }, [bookings, dateFilter, firstSessionSort, studyFilter]);
 
   async function requestAdminBookings(
-    method: "GET" | "PUT" | "DELETE",
+    method: "GET" | "POST" | "PUT" | "DELETE",
     body?: object,
   ) {
     const response = await fetch("/api/admin/bookings", {
@@ -160,6 +171,7 @@ export default function ViewBookingsPage() {
     try {
       const data = await requestAdminBookings("GET");
       setBookings(data.bookings ?? []);
+      setBlockedSlots(data.blockedSlots ?? []);
       setAuthenticated(true);
     } catch (error) {
       setAuthenticated(false);
@@ -201,6 +213,7 @@ export default function ViewBookingsPage() {
         booking: editingBooking,
       });
       setBookings(data.bookings ?? []);
+      setBlockedSlots(data.blockedSlots ?? []);
       setEditingBooking(null);
       setMessage(data.message ?? "Booking updated.");
     } catch (error) {
@@ -221,6 +234,7 @@ export default function ViewBookingsPage() {
     try {
       const data = await requestAdminBookings("DELETE", { id });
       setBookings(data.bookings ?? []);
+      setBlockedSlots(data.blockedSlots ?? []);
       setEditingBooking((current) => (current?.id === id ? null : current));
       setMessage(data.message ?? "Booking removed.");
     } catch (error) {
@@ -230,15 +244,74 @@ export default function ViewBookingsPage() {
     }
   }
 
+  async function addBlockedSlot(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoading(true);
+    setMessage("");
+
+    try {
+      const data = await requestAdminBookings("POST", {
+        blockedSlot: {
+          tag: blockStudy,
+          date: blockDate,
+          slot: blockSlot,
+          note: blockNote,
+        },
+      });
+      setBookings(data.bookings ?? []);
+      setBlockedSlots(data.blockedSlots ?? []);
+      setBlockDate("");
+      setBlockNote("");
+      setMessage(data.message ?? "Slot blocked.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not block slot.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function removeBlockedSlot(id: string) {
+    if (!window.confirm("Remove this blocked slot?")) {
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage("");
+
+    try {
+      const data = await requestAdminBookings("DELETE", { blockedSlotId: id });
+      setBookings(data.bookings ?? []);
+      setBlockedSlots(data.blockedSlots ?? []);
+      setMessage(data.message ?? "Blocked slot removed.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not remove.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function updateBlockStudy(tag: StudyTag) {
+    const nextSlotOptions = getSlotOptions(tag);
+
+    setBlockStudy(tag);
+    setBlockSlot(nextSlotOptions[0]);
+  }
+
   return (
     <main className="page-shell">
       <section className="bookings-admin">
         <div className="bookings-admin-header">
           <div>
             <p className="eyebrow">MEG experiment</p>
-            <h1>Participant bookings</h1>
+            <h1>Admin</h1>
           </div>
-          {authenticated ? <strong>{bookings.length} total</strong> : null}
+          {authenticated ? (
+            <strong>
+              {bookings.length} bookings, {blockedSlots.length} blocked
+            </strong>
+          ) : null}
         </div>
 
         {!authenticated ? (
@@ -269,8 +342,120 @@ export default function ViewBookingsPage() {
           <p className="empty-bookings">No bookings have been saved yet.</p>
         ) : null}
 
-        {authenticated && bookings.length > 0 ? (
+        {authenticated ? (
           <>
+            <section
+              className="blocked-slots-panel"
+              aria-labelledby="blocked-slots-title"
+            >
+              <div className="admin-section-header">
+                <div>
+                  <p className="eyebrow">Availability</p>
+                  <h2 id="blocked-slots-title">Blocked slots</h2>
+                </div>
+                <strong>{blockedSlots.length} blocked</strong>
+              </div>
+
+              <form className="blocked-slot-form" onSubmit={addBlockedSlot}>
+                <label>
+                  <span>Study</span>
+                  <select
+                    value={blockStudy}
+                    onChange={(event) =>
+                      updateBlockStudy(event.target.value as StudyTag)
+                    }
+                  >
+                    <option value="meg-study">MEG experiment</option>
+                    <option value="sensorimotor-study">
+                      Sensorimotor study
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  <span>Date</span>
+                  <input
+                    type="date"
+                    value={blockDate}
+                    onChange={(event) => setBlockDate(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Slot</span>
+                  <select
+                    value={blockSlot}
+                    onChange={(event) => setBlockSlot(event.target.value)}
+                  >
+                    {getSlotOptions(blockStudy).map((slot) => (
+                      <option value={slot} key={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Note</span>
+                  <input
+                    type="text"
+                    value={blockNote}
+                    onChange={(event) => setBlockNote(event.target.value)}
+                    placeholder="Optional"
+                  />
+                </label>
+                <button type="submit" disabled={isLoading}>
+                  Block slot
+                </button>
+              </form>
+
+              {blockedSlots.length === 0 ? (
+                <p className="empty-bookings">No blocked slots yet.</p>
+              ) : (
+                <div className="blocked-slots-list">
+                  {blockedSlots
+                    .toSorted((firstSlot, secondSlot) =>
+                      firstSlot.date.localeCompare(secondSlot.date) ||
+                      firstSlot.slot.localeCompare(secondSlot.slot),
+                    )
+                    .map((blockedSlot) => {
+                      const tag = getBlockedSlotTag(blockedSlot);
+
+                      return (
+                        <article
+                          className="blocked-slot-item"
+                          key={blockedSlot.id}
+                        >
+                          <div>
+                            <span>{getStudyConfig(tag).title}</span>
+                            <strong>
+                              {formatDisplayDate(blockedSlot.date)} at{" "}
+                              {blockedSlot.slot}
+                            </strong>
+                            {blockedSlot.note ? (
+                              <p>{blockedSlot.note}</p>
+                            ) : null}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeBlockedSlot(blockedSlot.id)}
+                            disabled={isLoading}
+                          >
+                            Remove
+                          </button>
+                        </article>
+                      );
+                    })}
+                </div>
+              )}
+            </section>
+
+            <div className="admin-section-header">
+              <div>
+                <p className="eyebrow">Participants</p>
+                <h2>Bookings</h2>
+              </div>
+              <strong>{visibleBookings.length} shown</strong>
+            </div>
+
             <div className="bookings-controls" aria-label="Booking filters">
               <label>
                 <span>Study type</span>
@@ -310,7 +495,6 @@ export default function ViewBookingsPage() {
                   <option value="desc">Latest first</option>
                 </select>
               </label>
-              <p>{visibleBookings.length} shown</p>
             </div>
 
             {visibleBookings.length === 0 ? (

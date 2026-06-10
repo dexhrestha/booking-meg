@@ -623,9 +623,133 @@ select {
   white-space: nowrap;
 }
 
+.admin-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 24px 0 14px;
+}
+
+.admin-section-header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+
+.admin-section-header .eyebrow {
+  color: var(--accent);
+}
+
+.admin-section-header strong {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.blocked-slots-panel {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 2px;
+}
+
+.blocked-slot-form {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 1fr) minmax(180px, 1.2fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.blocked-slot-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.blocked-slot-form input,
+.blocked-slot-form select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+}
+
+.blocked-slot-form button,
+.blocked-slot-item button {
+  min-height: 40px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #ffffff;
+  padding: 0 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.blocked-slot-form button:disabled,
+.blocked-slot-item button:disabled {
+  background: #9aa6a2;
+  border-color: #9aa6a2;
+  cursor: not-allowed;
+}
+
+.blocked-slots-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.blocked-slot-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.blocked-slot-item span,
+.blocked-slot-item strong,
+.blocked-slot-item p {
+  display: block;
+}
+
+.blocked-slot-item span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.blocked-slot-item strong {
+  margin-top: 4px;
+}
+
+.blocked-slot-item p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.blocked-slot-item button {
+  background: var(--surface);
+  color: var(--accent-dark);
+}
+
 .bookings-controls {
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
   gap: 12px;
   align-items: end;
   margin-bottom: 14px;
@@ -786,6 +910,10 @@ select {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .blocked-slot-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .session-grid,
   .confirmation dl {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -815,6 +943,8 @@ select {
 
   .existing-bookings-header,
   .bookings-admin-header,
+  .admin-section-header,
+  .blocked-slot-item,
   .admin-password-form,
   .bookings-controls,
   .form-actions {
@@ -823,7 +953,8 @@ select {
   }
 
   .admin-password-form,
-  .bookings-controls {
+  .bookings-controls,
+  .blocked-slot-form {
     grid-template-columns: 1fr;
   }
 }

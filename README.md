@@ -19,8 +19,9 @@ Replace `public/meg-banner.svg` with your experiment banner image, or update the
 
 ## Booking data
 
-Accepted bookings are stored in `data/bookings.json`. The API prevents two
-participants from booking the same session, date, and slot.
+Accepted bookings are stored in `data/bookings.json`. Admin-blocked slots are
+stored in `data/blocked-slots.json`. The API prevents participants from booking
+the same date and slot as another participant or an admin block.
 
 For Vercel, connect Vercel Blob and set this environment variable so bookings
 can persist:
@@ -30,14 +31,15 @@ BLOB_READ_WRITE_TOKEN=...
 ```
 
 `BLOB_READ_WRITE_TOKEN` is created by Vercel when you connect Blob storage to
-the project. The app stores the same array schema as `data/bookings.json` in a
-private Blob object at `bookings.json`.
+the project. The app stores the same array schema as `data/bookings.json` and
+`data/blocked-slots.json` in private Blob objects.
 
 ```bash
 BLOB_BOOKINGS_PATH=bookings.json
+BLOB_BLOCKED_SLOTS_PATH=blocked-slots.json
 ```
 
-For `/view_bookings`, set one of:
+For `/admin`, set one of:
 
 ```bash
 BOOKING_ADMIN_PASSWORD=...

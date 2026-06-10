@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  BlockedSlotEntry,
   BookingEntry,
   BookingState,
   formatDisplayDate,
+  getBlockedSlotTag,
   getBookingTag,
   getDayForDate,
   getLatestBookingDate,
@@ -13,6 +15,7 @@ import {
   getStudyTag,
   isAllowedSensorimotorFirstSessionDate,
   isAllowedFirstSessionDate,
+  isValidIsoDate,
   isSameOrAfterDate,
   isWithinSameWeek,
   isWeekdayDate,
@@ -22,7 +25,9 @@ import {
 } from "@/lib/booking";
 import {
   getStorageErrorMessage,
+  readBlockedSlots,
   readBookings,
+  writeBlockedSlots,
   writeBookings,
 } from "@/lib/bookings-store";
 
@@ -60,6 +65,16 @@ function isCompleteBooking(booking: BookingEntry, tag?: StudyTag) {
       const selection = booking.selections[session.id];
       return selection?.day && selection?.date && selection?.slot;
     })
+  );
+}
+
+function isCompleteBlockedSlot(blockedSlot: BlockedSlotEntry) {
+  const tag = getBlockedSlotTag(blockedSlot);
+
+  return Boolean(
+    blockedSlot.id &&
+      isValidIsoDate(blockedSlot.date) &&
+      getSlotOptions(tag).includes(blockedSlot.slot),
   );
 }
 
@@ -130,10 +145,104 @@ export async function GET(request: NextRequest) {
 
   try {
     const bookings = await readBookings();
+    const blockedSlots = await readBlockedSlots();
 
     return NextResponse.json({
       bookings: bookings.filter((booking) => isCompleteBooking(booking)),
+      blockedSlots: blockedSlots.filter((blockedSlot) =>
+        isCompleteBlockedSlot(blockedSlot),
+      ),
     });
+  } catch (error) {
+    return NextResponse.json(
+      { message: getStorageErrorMessage(error) },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return unauthorizedResponse();
+  }
+
+  try {
+    const payload = (await request.json()) as {
+      blockedSlot?: {
+        tag?: string;
+        date?: string;
+        slot?: string;
+        note?: string;
+      };
+    };
+    const input = payload.blockedSlot;
+    const tag = getStudyTag(input?.tag);
+    const date = input?.date ?? "";
+    const slot = input?.slot ?? "";
+    const note = input?.note?.trim() ?? "";
+
+    if (!input || !isValidIsoDate(date) || !getSlotOptions(tag).includes(slot)) {
+      return NextResponse.json(
+        { message: "Choose a study, date, and valid slot to block." },
+        { status: 400 },
+      );
+    }
+
+    const bookings = await readBookings();
+    const blockedSlots = await readBlockedSlots();
+    const alreadyBlocked = blockedSlots.some(
+      (blockedSlot) =>
+        getBlockedSlotTag(blockedSlot) === tag &&
+        blockedSlot.date === date &&
+        blockedSlot.slot === slot,
+    );
+
+    if (alreadyBlocked) {
+      return NextResponse.json(
+        { message: "That slot is already blocked." },
+        { status: 409 },
+      );
+    }
+
+    const bookedSlot = bookings.some(
+      (booking) =>
+        getBookingTag(booking) === tag &&
+        sessionConfigs.some((session) => {
+          const selection = booking.selections?.[session.id];
+
+          return selection?.date === date && selection?.slot === slot;
+        }),
+    );
+
+    if (bookedSlot) {
+      return NextResponse.json(
+        { message: "That slot already has a participant booking." },
+        { status: 409 },
+      );
+    }
+
+    const blockedSlot: BlockedSlotEntry = {
+      id: crypto.randomUUID(),
+      tag,
+      date,
+      slot,
+      note: note || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    const updatedBlockedSlots = [...blockedSlots, blockedSlot];
+
+    await writeBlockedSlots(updatedBlockedSlots);
+
+    return NextResponse.json(
+      {
+        message: "Slot blocked.",
+        bookings: bookings.filter((booking) => isCompleteBooking(booking)),
+        blockedSlots: updatedBlockedSlots.filter((item) =>
+          isCompleteBlockedSlot(item),
+        ),
+      },
+      { status: 201 },
+    );
   } catch (error) {
     return NextResponse.json(
       { message: getStorageErrorMessage(error) },
@@ -192,6 +301,7 @@ export async function PUT(request: NextRequest) {
   }
 
     const bookings = await readBookings();
+    const blockedSlots = await readBlockedSlots();
   const bookingIndex = bookings.findIndex((item) => item.id === booking.id);
 
   if (bookingIndex === -1) {
@@ -250,6 +360,28 @@ export async function PUT(request: NextRequest) {
     );
   }
 
+  const blockedConflict = blockedSlots.find(
+    (blockedSlot) =>
+      getBlockedSlotTag(blockedSlot) === tag &&
+      sessionConfigs.some((session) => {
+        const selection = booking.selections[session.id];
+
+        return (
+          selection?.date === blockedSlot.date &&
+          selection?.slot === blockedSlot.slot
+        );
+      }),
+  );
+
+  if (blockedConflict) {
+    return NextResponse.json(
+      {
+        message: `${formatDisplayDate(blockedConflict.date)} at ${blockedConflict.slot} is blocked.`,
+      },
+      { status: 409 },
+    );
+  }
+
   const updatedBooking: BookingEntry = {
     ...bookings[bookingIndex],
     tag,
@@ -269,6 +401,9 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({
       message: "Booking updated.",
       bookings: updatedBookings.filter((booking) => isCompleteBooking(booking)),
+      blockedSlots: blockedSlots.filter((blockedSlot) =>
+        isCompleteBlockedSlot(blockedSlot),
+      ),
     });
   } catch (error) {
     return NextResponse.json(
@@ -286,24 +421,41 @@ export async function DELETE(request: NextRequest) {
   try {
     const payload = (await request.json()) as {
       id?: string;
+      blockedSlotId?: string;
     };
+    const blockedSlotId = payload.blockedSlotId ?? "";
     const id = payload.id ?? "";
 
-    if (!id) {
+    if (!id && !blockedSlotId) {
       return NextResponse.json(
-        { message: "Choose a booking to remove." },
+        { message: "Choose a booking or blocked slot to remove." },
         { status: 400 },
       );
     }
 
     const bookings = await readBookings();
-    const updatedBookings = bookings.filter((booking) => booking.id !== id);
+    const blockedSlots = await readBlockedSlots();
+    const updatedBookings = id
+      ? bookings.filter((booking) => booking.id !== id)
+      : bookings;
+    const updatedBlockedSlots = blockedSlotId
+      ? blockedSlots.filter((blockedSlot) => blockedSlot.id !== blockedSlotId)
+      : blockedSlots;
 
-    await writeBookings(updatedBookings);
+    if (id) {
+      await writeBookings(updatedBookings);
+    }
+
+    if (blockedSlotId) {
+      await writeBlockedSlots(updatedBlockedSlots);
+    }
 
     return NextResponse.json({
-      message: "Booking removed.",
+      message: blockedSlotId ? "Blocked slot removed." : "Booking removed.",
       bookings: updatedBookings.filter((booking) => isCompleteBooking(booking)),
+      blockedSlots: updatedBlockedSlots.filter((blockedSlot) =>
+        isCompleteBlockedSlot(blockedSlot),
+      ),
     });
   } catch (error) {
     return NextResponse.json(

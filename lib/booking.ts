@@ -25,6 +25,16 @@ export type BookingEntry = {
   updatedAt?: string;
 };
 
+export type BlockedSlotEntry = {
+  id: string;
+  tag: StudyTag;
+  date: string;
+  slot: string;
+  note?: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
 export type OccupiedSlots = Record<SessionId, string[]>;
 
 export type StudyConfig = {
@@ -110,6 +120,10 @@ export function getBookingTag(booking: Pick<BookingEntry, "tag">): StudyTag {
   return getStudyTag(booking.tag);
 }
 
+export function getBlockedSlotTag(blockedSlot: Pick<BlockedSlotEntry, "tag">) {
+  return getStudyTag(blockedSlot.tag);
+}
+
 export function getSlotOptions(tag?: string | null) {
   return getStudyConfig(tag).slotOptions;
 }
@@ -130,7 +144,17 @@ function parseIsoDate(date: string) {
     return null;
   }
 
-  return new Date(year, month - 1, day);
+  const parsedDate = new Date(year, month - 1, day);
+
+  if (
+    parsedDate.getFullYear() !== year ||
+    parsedDate.getMonth() !== month - 1 ||
+    parsedDate.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsedDate;
 }
 
 function formatIsoDate(date: Date) {
@@ -296,6 +320,10 @@ export function slotKey(date: string, slot: string) {
 
 export function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+}
+
+export function isValidIsoDate(date: string) {
+  return Boolean(parseIsoDate(date));
 }
 
 export function emptyOccupiedSlots(): OccupiedSlots {
