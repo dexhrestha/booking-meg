@@ -32,6 +32,7 @@ import {
   readBookings,
   writeBookings,
 } from "@/lib/bookings-store";
+import { getCimecOccupiedSlotKeys } from "@/lib/cimec-calendar";
 
 type SessionDateLookup = Partial<Record<SessionId, string>>;
 
@@ -128,6 +129,18 @@ function getOccupiedSlots(
         occupied[session.id].push(slotKey(blockedSlot.date, blockedSlot.slot));
       }
     }
+  }
+
+  for (const session of sessionConfigs) {
+    const requestedDate = sessionDates[session.id];
+
+    if (!requestedDate) {
+      continue;
+    }
+
+    occupied[session.id].push(
+      ...getCimecOccupiedSlotKeys(tag, requestedDate),
+    );
   }
 
   return occupied;
