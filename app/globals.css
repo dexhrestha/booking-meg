@@ -10,6 +10,10 @@
   --accent-dark: #075e58;
   --accent-soft: #d7eeea;
   --warning: #a33c1e;
+  --other-researcher: #b42318;
+  --other-researcher-soft: #fff1f0;
+  --unavailable: #8d8f8a;
+  --unavailable-soft: #f2f0ec;
   --shadow: 0 20px 60px rgba(25, 39, 35, 0.14);
 }
 
@@ -375,6 +379,40 @@ select {
   color: var(--warning);
 }
 
+.slot-color-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.slot-color-index span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.slot-color-index i {
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+}
+
+.slot-color-index i[data-color="other-researcher"] {
+  background: var(--other-researcher-soft);
+  color: var(--other-researcher);
+}
+
+.slot-color-index i[data-color="unavailable"] {
+  background: var(--unavailable-soft);
+  color: var(--unavailable);
+}
+
 .session-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -463,9 +501,15 @@ select {
 
 .slot-option:has(input:disabled) {
   border-color: #e3e0da;
-  background: #f2f0ec;
-  color: #8d8f8a;
+  background: var(--unavailable-soft);
+  color: var(--unavailable);
   cursor: not-allowed;
+}
+
+.slot-option[data-block-reason="other-researcher"]:has(input:disabled) {
+  border-color: rgba(180, 35, 24, 0.42);
+  background: var(--other-researcher-soft);
+  color: var(--other-researcher);
 }
 
 .slot-option span {

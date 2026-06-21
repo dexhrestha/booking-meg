@@ -36,6 +36,11 @@ export type BlockedSlotEntry = {
 };
 
 export type OccupiedSlots = Record<SessionId, string[]>;
+export type SlotBlockReason = "other-researcher" | "unavailable";
+export type OccupiedSlotReasons = Record<
+  SessionId,
+  Record<string, SlotBlockReason>
+>;
 
 export type StudyConfig = {
   tag: StudyTag;
@@ -331,4 +336,11 @@ export function emptyOccupiedSlots(): OccupiedSlots {
     acc[session.id] = [];
     return acc;
   }, {} as OccupiedSlots);
+}
+
+export function emptyOccupiedSlotReasons(): OccupiedSlotReasons {
+  return sessionConfigs.reduce((acc, session) => {
+    acc[session.id] = {};
+    return acc;
+  }, {} as OccupiedSlotReasons);
 }

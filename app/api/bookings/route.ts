@@ -3,6 +3,7 @@ import {
   BlockedSlotEntry,
   BookingEntry,
   BookingState,
+  emptyOccupiedSlotReasons,
   emptyOccupiedSlots,
   formatDisplayDate,
   getBlockedSlotTag,
@@ -21,8 +22,10 @@ import {
   isWithinSameWeek,
   isWeekdayDate,
   isValidEmail,
+  OccupiedSlotReasons,
   SessionId,
   sessionConfigs,
+  SlotBlockReason,
   slotKey,
   StudyTag,
 } from "@/lib/booking";
@@ -35,6 +38,10 @@ import {
 import { getCimecOccupiedSlotKeys } from "@/lib/cimec-calendar";
 
 type SessionDateLookup = Partial<Record<SessionId, string>>;
+type OccupiedSlotData = {
+  occupiedSlotReasons: OccupiedSlotReasons;
+  occupiedSlots: Record<SessionId, string[]>;
+};
 
 function isCompleteBooking(booking: BookingEntry, tag?: StudyTag) {
   return Boolean(
@@ -90,6 +97,24 @@ function getOccupiedSlots(
   excludedBookingId?: string,
 ) {
   const occupied = emptyOccupiedSlots();
+  const occupiedSlotReasons = emptyOccupiedSlotReasons();
+
+  function addOccupiedSlot(
+    sessionId: SessionId,
+    key: string,
+    reason: SlotBlockReason,
+  ) {
+    if (!occupied[sessionId].includes(key)) {
+      occupied[sessionId].push(key);
+    }
+
+    if (
+      reason === "other-researcher" ||
+      !occupiedSlotReasons[sessionId][key]
+    ) {
+      occupiedSlotReasons[sessionId][key] = reason;
+    }
+  }
 
   for (const booking of bookings) {
     if (booking.id === excludedBookingId) {
@@ -111,7 +136,11 @@ function getOccupiedSlots(
         const selection = booking.selections[existingSession.id];
 
         if (selection?.date === requestedDate && selection.slot) {
-          occupied[session.id].push(slotKey(requestedDate, selection.slot));
+          addOccupiedSlot(
+            session.id,
+            slotKey(requestedDate, selection.slot),
+            "unavailable",
+          );
         }
       }
     }
@@ -126,7 +155,11 @@ function getOccupiedSlots(
       const requestedDate = sessionDates[session.id];
 
       if (requestedDate === blockedSlot.date) {
-        occupied[session.id].push(slotKey(blockedSlot.date, blockedSlot.slot));
+        addOccupiedSlot(
+          session.id,
+          slotKey(blockedSlot.date, blockedSlot.slot),
+          "unavailable",
+        );
       }
     }
   }
@@ -138,12 +171,15 @@ function getOccupiedSlots(
       continue;
     }
 
-    occupied[session.id].push(
-      ...getCimecOccupiedSlotKeys(tag, requestedDate),
-    );
+    for (const key of getCimecOccupiedSlotKeys(tag, requestedDate)) {
+      addOccupiedSlot(session.id, key, "other-researcher");
+    }
   }
 
-  return occupied;
+  return {
+    occupiedSlotReasons,
+    occupiedSlots: occupied,
+  } satisfies OccupiedSlotData;
 }
 
 function getSessionDatesForFirstSessionDate(firstSessionDate: string) {
@@ -269,6 +305,7 @@ export async function GET(request: NextRequest) {
 
     if (!validFirstSessionDate && tag !== "sensorimotor-study") {
       return NextResponse.json({
+        occupiedSlotReasons: emptyOccupiedSlotReasons(),
         occupiedSlots: emptyOccupiedSlots(),
         bookingCount: 0,
         existingBooking,
@@ -281,7 +318,7 @@ export async function GET(request: NextRequest) {
         : getSessionDatesForFirstSessionDate(firstSessionDate ?? "");
 
     return NextResponse.json({
-      occupiedSlots: getOccupiedSlots(
+      ...getOccupiedSlots(
         bookings,
         blockedSlots,
         tag,
@@ -351,7 +388,7 @@ export async function POST(request: NextRequest) {
           message:
             "This email already has a booking. The saved sessions have been loaded below for editing.",
           existingBooking,
-          occupiedSlots: getOccupiedSlots(
+          ...getOccupiedSlots(
             bookings,
             blockedSlots,
             tag,
@@ -363,14 +400,14 @@ export async function POST(request: NextRequest) {
     }
 
     const selectedSessionDates = getSessionDatesForSelections(selections);
-    const occupiedSlots = getOccupiedSlots(
+    const occupiedSlotData = getOccupiedSlots(
       bookings,
       blockedSlots,
       tag,
       selectedSessionDates,
     );
     const conflict = sessionConfigs.find((session) =>
-      occupiedSlots[session.id].includes(
+      occupiedSlotData.occupiedSlots[session.id].includes(
         slotKey(selections[session.id].date, selections[session.id].slot),
       ),
     );
@@ -381,7 +418,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           message: `${conflict.title} on ${conflictSelection.day}, ${conflictSelection.date} at ${conflictSelection.slot} is unavailable. Choose another slot.`,
-          occupiedSlots,
+          ...occupiedSlotData,
         },
         { status: 409 },
       );
@@ -404,7 +441,7 @@ export async function POST(request: NextRequest) {
         message:
           `Booking confirmed. Your selected ${study.confirmationSubject} slots have been saved.`,
         booking,
-        occupiedSlots: getOccupiedSlots(
+        ...getOccupiedSlots(
           updatedBookings,
           blockedSlots,
           tag,
@@ -480,7 +517,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const selectedSessionDates = getSessionDatesForSelections(selections);
-  const occupiedSlots = getOccupiedSlots(
+  const occupiedSlotData = getOccupiedSlots(
     bookings,
     blockedSlots,
     tag,
@@ -488,7 +525,7 @@ export async function PUT(request: NextRequest) {
     id,
   );
   const conflict = sessionConfigs.find((session) =>
-    occupiedSlots[session.id].includes(
+    occupiedSlotData.occupiedSlots[session.id].includes(
       slotKey(selections[session.id].date, selections[session.id].slot),
     ),
   );
@@ -499,7 +536,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(
       {
         message: `${conflict.title} on ${conflictSelection.day}, ${conflictSelection.date} at ${conflictSelection.slot} is unavailable. Choose another slot.`,
-        occupiedSlots,
+        ...occupiedSlotData,
       },
       { status: 409 },
     );
@@ -530,7 +567,7 @@ export async function PUT(request: NextRequest) {
       message:
         `Booking updated. Your selected ${study.confirmationSubject} slots have been saved.`,
       booking,
-      occupiedSlots: getOccupiedSlots(
+      ...getOccupiedSlots(
         updatedBookings,
         blockedSlots,
         tag,

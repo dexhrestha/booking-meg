@@ -6,6 +6,7 @@ import {
   BookingEntry,
   BookingState,
   buildSelectionsForStartDate,
+  emptyOccupiedSlotReasons,
   emptyOccupiedSlots,
   formatDisplayDate,
   getDayForDate,
@@ -18,10 +19,12 @@ import {
   isWithinSameWeek,
   isWeekdayDate,
   isValidEmail,
+  OccupiedSlotReasons,
   OccupiedSlots,
   SessionId,
   SessionSelection,
   sessionConfigs,
+  SlotBlockReason,
   slotKey,
   StudyConfig,
 } from "@/lib/booking";
@@ -61,6 +64,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   const [editingBookingId, setEditingBookingId] = useState("");
   const [occupiedSlots, setOccupiedSlots] =
     useState<OccupiedSlots>(emptyOccupiedSlots);
+  const [occupiedSlotReasons, setOccupiedSlotReasons] =
+    useState<OccupiedSlotReasons>(emptyOccupiedSlotReasons);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
@@ -139,6 +144,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     async function loadBookingData() {
       if (!startDateSelected && !emailLooksValid) {
         setOccupiedSlots(emptyOccupiedSlots());
+        setOccupiedSlotReasons(emptyOccupiedSlotReasons());
         setExistingBooking(null);
         return;
       }
@@ -176,10 +182,14 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       }
 
       const data = (await response.json()) as {
+        occupiedSlotReasons?: OccupiedSlotReasons;
         occupiedSlots: OccupiedSlots;
         existingBooking?: BookingEntry | null;
       };
       setOccupiedSlots(data.occupiedSlots);
+      setOccupiedSlotReasons(
+        data.occupiedSlotReasons ?? emptyOccupiedSlotReasons(),
+      );
       setExistingBooking(data.existingBooking ?? null);
 
       if (
@@ -247,6 +257,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     if (value && !isAllowedFirstSessionDate(value)) {
       setFirstSessionDate("");
       setOccupiedSlots(emptyOccupiedSlots());
+      setOccupiedSlotReasons(emptyOccupiedSlotReasons());
       setMessage(
         `Choose a Tuesday first-session date within the next 4 weeks, through ${latestBookingDate}.`,
       );
@@ -381,6 +392,24 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     setMessage("");
     setSelections(initialSelections);
     setOccupiedSlots(emptyOccupiedSlots());
+    setOccupiedSlotReasons(emptyOccupiedSlotReasons());
+  }
+
+  function getSlotBlockReason(
+    sessionId: SessionId,
+    key: string,
+    isBooked: boolean,
+    isSelectedEarlier: boolean,
+  ): SlotBlockReason | undefined {
+    if (isBooked) {
+      return occupiedSlotReasons[sessionId][key] ?? "unavailable";
+    }
+
+    if (isSelectedEarlier) {
+      return "unavailable";
+    }
+
+    return undefined;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -414,6 +443,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       const data = await parseJsonResponse<{
         booking?: BookingEntry;
         message?: string;
+        occupiedSlotReasons?: OccupiedSlotReasons;
         occupiedSlots?: OccupiedSlots;
         existingBooking?: BookingEntry | null;
       }>(response);
@@ -423,6 +453,9 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
         if (data.occupiedSlots) {
           setOccupiedSlots(data.occupiedSlots);
+          setOccupiedSlotReasons(
+            data.occupiedSlotReasons ?? emptyOccupiedSlotReasons(),
+          );
         }
 
         if (data.existingBooking) {
@@ -440,6 +473,9 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
       if (data.occupiedSlots) {
         setOccupiedSlots(data.occupiedSlots);
+        setOccupiedSlotReasons(
+          data.occupiedSlotReasons ?? emptyOccupiedSlotReasons(),
+        );
       }
 
       if (data.existingBooking) {
@@ -524,6 +560,17 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
           </section>
         ) : null}
 
+        <div className="slot-color-index" aria-label="Color index">
+          <span>
+            <i data-color="other-researcher" aria-hidden="true" />
+            Other researcher
+          </span>
+          <span>
+            <i data-color="unavailable" aria-hidden="true" />
+            Unavailable
+          </span>
+        </div>
+
         <div className="session-grid">
           {sessionConfigs.map((session, sessionIndex) => {
             const previousSession = sessionConfigs[sessionIndex - 1];
@@ -606,9 +653,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                 <div className="slot-group" role="radiogroup">
                   {study.slotOptions.map((slot) => {
                     const inputId = `${study.tag}-${session.id}-${slot}`;
-                    const isBooked = occupiedSlots[session.id].includes(
-                      slotKey(selections[session.id].date, slot),
-                    );
+                    const key = slotKey(selections[session.id].date, slot);
+                    const isBooked = occupiedSlots[session.id].includes(key);
                     const isSelectedEarlier =
                       usesPerSessionDates &&
                       sessionConfigs
@@ -618,10 +664,17 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                             selections[previous.id].date === selectedDate &&
                             selections[previous.id].slot === slot,
                         );
+                    const blockReason = getSlotBlockReason(
+                      session.id,
+                      key,
+                      isBooked,
+                      isSelectedEarlier,
+                    );
 
                     return (
                       <label
                         className="slot-option"
+                        data-block-reason={blockReason}
                         htmlFor={inputId}
                         key={slot}
                       >
@@ -641,7 +694,11 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                         />
                         <span>
                           {slot}
-                          {isBooked ? " booked" : ""}
+                          {isBooked
+                            ? blockReason === "other-researcher"
+                              ? " other researcher"
+                              : " unavailable"
+                            : ""}
                           {!isBooked && isSelectedEarlier ? " selected" : ""}
                         </span>
                       </label>
