@@ -696,8 +696,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                           {slot}
                           {isBooked
                             ? blockReason === "other-researcher"
-                              ? " other researcher"
-                              : " unavailable"
+                              ? " unavailable"
+                              : " booked"
                             : ""}
                           {!isBooked && isSelectedEarlier ? " selected" : ""}
                         </span>
