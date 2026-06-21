@@ -563,11 +563,11 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
         <div className="slot-color-index" aria-label="Color index">
           <span>
             <i data-color="other-researcher" aria-hidden="true" />
-            Other researcher
+            Unavailable 
           </span>
           <span>
             <i data-color="unavailable" aria-hidden="true" />
-            Unavailable
+            Booked
           </span>
         </div>
 
