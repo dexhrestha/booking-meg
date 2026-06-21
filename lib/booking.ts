@@ -205,7 +205,7 @@ export function isAllowedFirstSessionDate(date: string) {
   const parsedDate = parseIsoDate(date);
   const weekday = parsedDate?.getDay();
 
-  return (weekday === 1 || weekday === 2) && isWithinBookingWindow(date);
+  return weekday === 2 && isWithinBookingWindow(date);
 }
 
 export function isAllowedSensorimotorFirstSessionDate(date: string) {

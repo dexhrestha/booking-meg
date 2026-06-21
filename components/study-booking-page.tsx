@@ -113,10 +113,12 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     [selections, usesPerSessionDates],
   );
   const latestBookingDate = formatDisplayDate(getLatestFirstSessionDate());
-  const latestSensorimotorBookingDate = formatDisplayDate(getLatestBookingDate(8));
+  const latestSensorimotorBookingDate = formatDisplayDate(
+    getLatestBookingDate(8),
+  );
   const validationMessages: string[] = [
     !usesPerSessionDates && !startDateSelected
-      ? `Choose a Monday or Tuesday for the first session within the next 4 weeks, through ${latestBookingDate}.`
+      ? `Choose a Tuesday for the first session within the next 4 weeks, through ${latestBookingDate}.`
       : "",
     usesPerSessionDates && missingDates.length > 0
       ? `Choose Session 1 on a Monday or Tuesday within 8 weeks, then keep Sessions 2-4 on weekdays in that same week, on or after the previous session date.`
@@ -246,7 +248,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       setFirstSessionDate("");
       setOccupiedSlots(emptyOccupiedSlots());
       setMessage(
-        `Choose a Monday or Tuesday first-session date within the next 4 weeks, through ${latestBookingDate}.`,
+        `Choose a Tuesday first-session date within the next 4 weeks, through ${latestBookingDate}.`,
       );
       return;
     }
@@ -483,8 +485,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                 }
               />
               <small>
-                Session 1 must start on a Monday or Tuesday within the next 4
-                weeks.
+                Session 1 must start on a Tuesday within the next 4 weeks.
               </small>
             </label>
           ) : null}

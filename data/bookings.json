@@ -1,31 +1,263 @@
 [
   {
-    "id": "fff31388-bae8-49c3-a6af-1b8ad809bf2f",
-    "tag": "meg-study",
-    "email": "s.dipesh5745@gmail.com",
-    "firstSessionDate": "2026-06-01",
+    "id": "ed2631b7-1ca9-4653-8a29-984bc73967c0",
+    "tag": "sensorimotor-study",
+    "email": "ginette.dinadin@studenti.unitn.it",
+    "firstSessionDate": "2026-06-15",
     "selections": {
       "session1": {
         "day": "Monday",
-        "date": "2026-06-01",
-        "slot": "09:00 - 11:00"
+        "date": "2026-06-15",
+        "slot": "16:00 - 17:00"
       },
       "session2": {
         "day": "Tuesday",
-        "date": "2026-06-02",
-        "slot": "09:00 - 11:00"
+        "date": "2026-06-16",
+        "slot": "16:00 - 17:00"
       },
       "session3": {
         "day": "Wednesday",
-        "date": "2026-06-03",
-        "slot": "09:00 - 11:00"
+        "date": "2026-06-17",
+        "slot": "14:00 - 15:00"
       },
       "session4": {
         "day": "Thursday",
-        "date": "2026-06-04",
-        "slot": "09:00 - 11:00"
+        "date": "2026-06-18",
+        "slot": "14:00 - 15:00"
       }
     },
-    "createdAt": "2026-05-24T20:05:44.455Z"
+    "createdAt": "2026-06-11T19:11:28.903Z"
+  },
+  {
+    "id": "36807c32-af0d-4977-bf25-785572da3575",
+    "tag": "sensorimotor-study",
+    "email": "melissa.null@unitn.it",
+    "firstSessionDate": "2026-06-22",
+    "selections": {
+      "session1": {
+        "day": "Monday",
+        "date": "2026-06-22",
+        "slot": "11:00 - 12:00"
+      },
+      "session2": {
+        "day": "Tuesday",
+        "date": "2026-06-23",
+        "slot": "11:00 - 12:00"
+      },
+      "session3": {
+        "day": "Wednesday",
+        "date": "2026-06-24",
+        "slot": "11:00 - 12:00"
+      },
+      "session4": {
+        "day": "Thursday",
+        "date": "2026-06-25",
+        "slot": "11:00 - 12:00"
+      }
+    },
+    "createdAt": "2026-06-11T19:13:02.445Z"
+  },
+  {
+    "id": "a1f6a862-f91f-4333-b21b-ffa7a8bcd3b1",
+    "tag": "sensorimotor-study",
+    "email": "chiara.speranza@unitn.it",
+    "firstSessionDate": "2026-06-23",
+    "selections": {
+      "session1": {
+        "day": "Tuesday",
+        "date": "2026-06-23",
+        "slot": "17:00 - 18:00"
+      },
+      "session2": {
+        "day": "Wednesday",
+        "date": "2026-06-24",
+        "slot": "09:00 - 10:00"
+      },
+      "session3": {
+        "day": "Thursday",
+        "date": "2026-06-25",
+        "slot": "09:00 - 10:00"
+      },
+      "session4": {
+        "day": "Friday",
+        "date": "2026-06-26",
+        "slot": "12:00 - 13:00"
+      }
+    },
+    "createdAt": "2026-06-11T19:14:14.818Z"
+  },
+  {
+    "id": "3b8e69d4-83d9-45d5-a612-50ded912d19e",
+    "tag": "meg-study",
+    "email": "eliz.yilmaz@studenti.unitn.it",
+    "firstSessionDate": "2026-06-23",
+    "selections": {
+      "session1": {
+        "day": "Tuesday",
+        "date": "2026-06-23",
+        "slot": "11:00 - 13:00"
+      },
+      "session2": {
+        "day": "Wednesday",
+        "date": "2026-06-24",
+        "slot": "11:00 - 13:00"
+      },
+      "session3": {
+        "day": "Thursday",
+        "date": "2026-06-25",
+        "slot": "11:00 - 13:00"
+      },
+      "session4": {
+        "day": "Friday",
+        "date": "2026-06-26",
+        "slot": "11:00 - 13:00"
+      }
+    },
+    "createdAt": "2026-06-11T19:15:02.473Z"
+  },
+  {
+    "id": "2341df37-92ba-4702-ab8b-3e904b64bde1",
+    "tag": "sensorimotor-study",
+    "email": "culcasisilvia83@gmail.com",
+    "firstSessionDate": "2026-07-20",
+    "selections": {
+      "session1": {
+        "day": "Monday",
+        "date": "2026-07-20",
+        "slot": "17:00 - 18:00"
+      },
+      "session2": {
+        "day": "Tuesday",
+        "date": "2026-07-21",
+        "slot": "16:00 - 17:00"
+      },
+      "session3": {
+        "day": "Wednesday",
+        "date": "2026-07-22",
+        "slot": "16:00 - 17:00"
+      },
+      "session4": {
+        "day": "Thursday",
+        "date": "2026-07-23",
+        "slot": "16:00 - 17:00"
+      }
+    },
+    "createdAt": "2026-06-11T19:16:09.964Z"
+  },
+  {
+    "id": "459b9dc0-1540-444f-a7b1-a4448d81c56a",
+    "tag": "sensorimotor-study",
+    "email": "garnimanar@gmail.com",
+    "firstSessionDate": "2026-07-20",
+    "selections": {
+      "session1": {
+        "day": "Monday",
+        "date": "2026-07-20",
+        "slot": "18:00 - 19:00"
+      },
+      "session2": {
+        "day": "Tuesday",
+        "date": "2026-07-21",
+        "slot": "17:00 - 18:00"
+      },
+      "session3": {
+        "day": "Wednesday",
+        "date": "2026-07-22",
+        "slot": "17:00 - 18:00"
+      },
+      "session4": {
+        "day": "Thursday",
+        "date": "2026-07-23",
+        "slot": "17:00 - 18:00"
+      }
+    },
+    "createdAt": "2026-06-11T19:17:07.501Z"
+  },
+  {
+    "id": "4527db93-4940-4939-9230-80e7a40ce36c",
+    "tag": "sensorimotor-study",
+    "email": "eleonora.tosi-1@unitn.it",
+    "firstSessionDate": "2026-06-15",
+    "selections": {
+      "session1": {
+        "day": "Monday",
+        "date": "2026-06-15",
+        "slot": "15:00 - 16:00"
+      },
+      "session2": {
+        "day": "Tuesday",
+        "date": "2026-06-16",
+        "slot": "15:00 - 16:00"
+      },
+      "session3": {
+        "day": "Wednesday",
+        "date": "2026-06-17",
+        "slot": "15:00 - 16:00"
+      },
+      "session4": {
+        "day": "Thursday",
+        "date": "2026-06-18",
+        "slot": "15:00 - 16:00"
+      }
+    },
+    "createdAt": "2026-06-11T19:27:16.851Z"
+  },
+  {
+    "id": "fa3cb794-f409-4a67-a055-ef911052b4e9",
+    "tag": "sensorimotor-study",
+    "email": "heta712@gmail.com",
+    "firstSessionDate": "2026-06-22",
+    "selections": {
+      "session1": {
+        "day": "Monday",
+        "date": "2026-06-22",
+        "slot": "14:00 - 15:00"
+      },
+      "session2": {
+        "day": "Tuesday",
+        "date": "2026-06-23",
+        "slot": "14:00 - 15:00"
+      },
+      "session3": {
+        "day": "Wednesday",
+        "date": "2026-06-24",
+        "slot": "14:00 - 15:00"
+      },
+      "session4": {
+        "day": "Thursday",
+        "date": "2026-06-25",
+        "slot": "14:00 - 15:00"
+      }
+    },
+    "createdAt": "2026-06-11T19:28:54.446Z"
+  },
+  {
+    "id": "4a8e67c0-32fa-4228-94bd-127b0fd6f0c4",
+    "tag": "sensorimotor-study",
+    "email": "eliz.yilmaz@studenti.unitn.it",
+    "firstSessionDate": "2026-06-15",
+    "selections": {
+      "session1": {
+        "day": "Monday",
+        "date": "2026-06-15",
+        "slot": "18:00 - 19:00"
+      },
+      "session2": {
+        "day": "Tuesday",
+        "date": "2026-06-16",
+        "slot": "18:00 - 19:00"
+      },
+      "session3": {
+        "day": "Wednesday",
+        "date": "2026-06-17",
+        "slot": "18:00 - 19:00"
+      },
+      "session4": {
+        "day": "Thursday",
+        "date": "2026-06-18",
+        "slot": "11:00 - 12:00"
+      }
+    },
+    "createdAt": "2026-06-11T19:33:09.489Z"
   }
 ]

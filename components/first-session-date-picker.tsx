@@ -57,7 +57,7 @@ export function FirstSessionDatePicker({
   invalid,
   disabled = false,
   isDateUnavailable = isUnavailableFirstSessionDate,
-  note = `Select a Monday or Tuesday within the next 4 weeks, through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
+  note = `Select a Tuesday within the next 4 weeks, through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
   placeholder = "Pick a date",
 }: FirstSessionDatePickerProps) {
   const selectedDate = dateFromIso(value);

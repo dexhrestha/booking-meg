@@ -1,7 +1,7 @@
 # MEG Experiment Booking
 
 Next.js booking form for MEG experiment participants. Participants select the
-Monday or Tuesday date for Session 1, then choose one available slot for each
+Tuesday date for Session 1, then choose one available slot for each
 consecutive session.
 
 ## Run locally

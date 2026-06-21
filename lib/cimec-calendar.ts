@@ -3,10 +3,14 @@ import { getSlotOptions, slotKey, StudyTag } from "@/lib/booking";
 
 type CimecCalendarBooking = {
   date?: string;
+  details?: string;
   status?: string;
   start_time?: string;
   end_time?: string;
+  text?: string;
 };
+
+const mentalSimulationPattern = /mental\s+simulation/i;
 
 function timeToMinutes(time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -51,6 +55,12 @@ function rangesOverlap(
   );
 }
 
+function hasMentalSimulationDetails(booking: CimecCalendarBooking) {
+  const details = [booking.details, booking.text].filter(Boolean).join(" ");
+
+  return mentalSimulationPattern.test(details);
+}
+
 export function getCimecOccupiedSlotKeys(tag: StudyTag, date: string) {
   const occupied = new Set<string>();
   const slotOptions = getSlotOptions(tag);
@@ -60,6 +70,7 @@ export function getCimecOccupiedSlotKeys(tag: StudyTag, date: string) {
     if (
       booking.date !== date ||
       booking.status !== "busy" ||
+      hasMentalSimulationDetails(booking) ||
       !booking.start_time ||
       !booking.end_time
     ) {
