@@ -158,6 +158,118 @@ select {
   color: var(--accent-dark);
 }
 
+.experiments-home {
+  display: grid;
+  gap: 24px;
+}
+
+.experiments-hero {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(12, 118, 110, 0.12), rgba(255, 255, 255, 0) 45%),
+    var(--surface);
+  box-shadow: var(--shadow);
+  padding: clamp(24px, 6vw, 56px);
+}
+
+.experiments-hero .eyebrow {
+  color: var(--accent);
+}
+
+.experiments-hero h1 {
+  max-width: 820px;
+  margin: 0;
+  font-size: clamp(2.15rem, 5vw, 4.9rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.experiments-hero p:last-child {
+  max-width: 620px;
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 1.04rem;
+  line-height: 1.6;
+}
+
+.experiment-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.experiment-card {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 12px 32px rgba(25, 39, 35, 0.08);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.experiment-card:hover,
+.experiment-card:focus-visible {
+  border-color: rgba(12, 118, 110, 0.45);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+
+.experiment-card:focus-visible {
+  outline: 3px solid rgba(12, 118, 110, 0.2);
+  outline-offset: 3px;
+}
+
+.experiment-card-image {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  background: var(--surface-soft);
+}
+
+.experiment-card-image img {
+  object-fit: cover;
+  object-position: top center;
+}
+
+.experiment-card-body {
+  display: grid;
+  gap: 10px;
+  padding: clamp(18px, 3vw, 26px);
+}
+
+.experiment-card-meta,
+.experiment-card-action {
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.experiment-card-title {
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.experiment-card-description {
+  min-height: 3.1em;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.experiment-card-action {
+  margin-top: 8px;
+  color: var(--accent-dark);
+}
+
 .booking-form,
 .confirmation {
   margin-top: 24px;
@@ -950,6 +1062,10 @@ select {
     grid-template-columns: 1fr;
   }
 
+  .experiment-card-grid {
+    grid-template-columns: 1fr;
+  }
+
   .bookings-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -971,6 +1087,8 @@ select {
   }
 
   .experiment-banner,
+  .experiments-hero,
+  .experiment-card,
   .booking-form,
   .confirmation {
     border-radius: 6px;

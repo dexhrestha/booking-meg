@@ -1,8 +1,7 @@
 # MEG Experiment Booking
 
-Next.js booking form for MEG experiment participants. Participants select the
-Tuesday date for Session 1, then choose one available slot for each
-consecutive session.
+Next.js booking hub for experiment participants. The homepage lists available
+experiments, and each experiment page handles the relevant session booking flow.
 
 ## Run locally
 
@@ -11,11 +10,12 @@ npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000`.
+Then open `http://localhost:3000`. The MEG experiment is available at
+`http://localhost:3000/meg`.
 
 ## Customize the banner
 
-Replace `public/meg-banner.svg` with your experiment banner image, or update the banner text in `app/page.tsx`.
+Replace the flyer image in `assets/`, or update the relevant experiment page.
 
 ## Booking data
 
