@@ -65,12 +65,12 @@ export const sessionConfigs: SessionConfig[] = [
   {
     id: "session3",
     title: "Session 3",
-    dayOffset: 2,
+    dayOffset: 4,
   },
   {
     id: "session4",
     title: "Session 4",
-    dayOffset: 3,
+    dayOffset: 5,
   },
 ];
 
@@ -210,7 +210,7 @@ export function isAllowedFirstSessionDate(date: string) {
   const parsedDate = parseIsoDate(date);
   const weekday = parsedDate?.getDay();
 
-  return weekday === 2 && isWithinBookingWindow(date);
+  return weekday === 4 && isWithinBookingWindow(date);
 }
 
 export function isAllowedSensorimotorFirstSessionDate(date: string) {

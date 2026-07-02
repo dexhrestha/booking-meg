@@ -30,6 +30,7 @@ import {
   writeBlockedSlots,
   writeBookings,
 } from "@/lib/bookings-store";
+import { getCimecBlockedSlots } from "@/lib/cimec-calendar";
 
 function getAdminPassword() {
   return (
@@ -76,6 +77,19 @@ function isCompleteBlockedSlot(blockedSlot: BlockedSlotEntry) {
       isValidIsoDate(blockedSlot.date) &&
       getSlotOptions(tag).includes(blockedSlot.slot),
   );
+}
+
+function getAdminPayload(
+  bookings: BookingEntry[],
+  blockedSlots: BlockedSlotEntry[],
+) {
+  return {
+    bookings: bookings.filter((booking) => isCompleteBooking(booking)),
+    blockedSlots: blockedSlots.filter((blockedSlot) =>
+      isCompleteBlockedSlot(blockedSlot),
+    ),
+    cimecBlockedSlots: getCimecBlockedSlots(),
+  };
 }
 
 function validateSelections(
@@ -147,12 +161,7 @@ export async function GET(request: NextRequest) {
     const bookings = await readBookings();
     const blockedSlots = await readBlockedSlots();
 
-    return NextResponse.json({
-      bookings: bookings.filter((booking) => isCompleteBooking(booking)),
-      blockedSlots: blockedSlots.filter((blockedSlot) =>
-        isCompleteBlockedSlot(blockedSlot),
-      ),
-    });
+    return NextResponse.json(getAdminPayload(bookings, blockedSlots));
   } catch (error) {
     return NextResponse.json(
       { message: getStorageErrorMessage(error) },
@@ -236,10 +245,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message: "Slot blocked.",
-        bookings: bookings.filter((booking) => isCompleteBooking(booking)),
-        blockedSlots: updatedBlockedSlots.filter((item) =>
-          isCompleteBlockedSlot(item),
-        ),
+        ...getAdminPayload(bookings, updatedBlockedSlots),
       },
       { status: 201 },
     );
@@ -284,7 +290,7 @@ export async function PUT(request: NextRequest) {
         message:
           tag === "sensorimotor-study"
             ? `Enter a valid email, choose Session 1 on a Monday or Tuesday within the next 8 weeks through ${formatDisplayDate(getLatestBookingDate(8))}, and keep the remaining sessions on weekdays in that same week.`
-            : `Enter a valid email and a Tuesday first-session date within the next 4 weeks, through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
+            : `Enter a valid email and a Thursday first-session date within the next 4 weeks, through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
       },
       { status: 400 },
     );
@@ -400,10 +406,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       message: "Booking updated.",
-      bookings: updatedBookings.filter((booking) => isCompleteBooking(booking)),
-      blockedSlots: blockedSlots.filter((blockedSlot) =>
-        isCompleteBlockedSlot(blockedSlot),
-      ),
+      ...getAdminPayload(updatedBookings, blockedSlots),
     });
   } catch (error) {
     return NextResponse.json(
@@ -452,10 +455,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       message: blockedSlotId ? "Blocked slot removed." : "Booking removed.",
-      bookings: updatedBookings.filter((booking) => isCompleteBooking(booking)),
-      blockedSlots: updatedBlockedSlots.filter((blockedSlot) =>
-        isCompleteBlockedSlot(blockedSlot),
-      ),
+      ...getAdminPayload(updatedBookings, updatedBlockedSlots),
     });
   } catch (error) {
     return NextResponse.json(

@@ -1,136 +1,193 @@
 {
   "source": "https://apps.cimec.unitn.it/cis/bareCalendar.php",
   "resource": {
-    "value": "3",
-    "label": "Psychophysics labs EPL Behavioral"
+    "value": "13",
+    "label": "Eyelink"
   },
   "date_range": {
-    "start": "2026-06-15",
-    "end": "2026-06-29"
+    "start": "2026-06-29",
+    "end": "2026-07-20"
   },
   "fetched_dates": [
-    "2026-06-14",
-    "2026-06-21",
-    "2026-06-28"
+    "2026-06-28",
+    "2026-07-05",
+    "2026-07-12",
+    "2026-07-19"
   ],
   "columns": [
     {
       "index": 0,
-      "date": "2026-06-15",
+      "date": "2026-06-29",
       "month_label": "Jun 2026",
-      "day": 15,
+      "day": 29,
       "weekday": "Mon",
       "selected": true
     },
     {
       "index": 1,
-      "date": "2026-06-16",
+      "date": "2026-06-30",
       "month_label": "Jun 2026",
-      "day": 16,
+      "day": 30,
       "weekday": "Tue",
       "selected": false
     },
     {
       "index": 2,
-      "date": "2026-06-17",
-      "month_label": "Jun 2026",
-      "day": 17,
+      "date": "2026-07-01",
+      "month_label": "Jul 2026",
+      "day": 1,
       "weekday": "Wed",
       "selected": false
     },
     {
       "index": 3,
-      "date": "2026-06-18",
-      "month_label": "Jun 2026",
-      "day": 18,
+      "date": "2026-07-02",
+      "month_label": "Jul 2026",
+      "day": 2,
       "weekday": "Thu",
       "selected": false
     },
     {
       "index": 4,
-      "date": "2026-06-19",
-      "month_label": "Jun 2026",
-      "day": 19,
+      "date": "2026-07-03",
+      "month_label": "Jul 2026",
+      "day": 3,
       "weekday": "Fri",
       "selected": false
     },
     {
       "index": 5,
-      "date": "2026-06-20",
-      "month_label": "Jun 2026",
-      "day": 20,
+      "date": "2026-07-04",
+      "month_label": "Jul 2026",
+      "day": 4,
       "weekday": "Sat",
       "selected": false
     },
     {
       "index": 6,
-      "date": "2026-06-21",
-      "month_label": "Jun 2026",
-      "day": 21,
+      "date": "2026-07-05",
+      "month_label": "Jul 2026",
+      "day": 5,
       "weekday": "Sun",
       "selected": false
     },
     {
       "index": 7,
-      "date": "2026-06-22",
-      "month_label": "Jun 2026",
-      "day": 22,
+      "date": "2026-07-06",
+      "month_label": "Jul 2026",
+      "day": 6,
       "weekday": "Mon",
       "selected": false
     },
     {
       "index": 8,
-      "date": "2026-06-23",
-      "month_label": "Jun 2026",
-      "day": 23,
+      "date": "2026-07-07",
+      "month_label": "Jul 2026",
+      "day": 7,
       "weekday": "Tue",
       "selected": false
     },
     {
       "index": 9,
-      "date": "2026-06-24",
-      "month_label": "Jun 2026",
-      "day": 24,
+      "date": "2026-07-08",
+      "month_label": "Jul 2026",
+      "day": 8,
       "weekday": "Wed",
       "selected": false
     },
     {
       "index": 10,
-      "date": "2026-06-25",
-      "month_label": "Jun 2026",
-      "day": 25,
+      "date": "2026-07-09",
+      "month_label": "Jul 2026",
+      "day": 9,
       "weekday": "Thu",
       "selected": false
     },
     {
       "index": 11,
-      "date": "2026-06-26",
-      "month_label": "Jun 2026",
-      "day": 26,
+      "date": "2026-07-10",
+      "month_label": "Jul 2026",
+      "day": 10,
       "weekday": "Fri",
       "selected": false
     },
     {
       "index": 12,
-      "date": "2026-06-27",
-      "month_label": "Jun 2026",
-      "day": 27,
+      "date": "2026-07-11",
+      "month_label": "Jul 2026",
+      "day": 11,
       "weekday": "Sat",
       "selected": false
     },
     {
       "index": 13,
-      "date": "2026-06-28",
-      "month_label": "Jun 2026",
-      "day": 28,
+      "date": "2026-07-12",
+      "month_label": "Jul 2026",
+      "day": 12,
       "weekday": "Sun",
       "selected": false
     },
     {
       "index": 14,
-      "date": "2026-06-29",
-      "month_label": "Jun 2026",
-      "day": 29,
+      "date": "2026-07-13",
+      "month_label": "Jul 2026",
+      "day": 13,
+      "weekday": "Mon",
+      "selected": false
+    },
+    {
+      "index": 15,
+      "date": "2026-07-14",
+      "month_label": "Jul 2026",
+      "day": 14,
+      "weekday": "Tue",
+      "selected": false
+    },
+    {
+      "index": 16,
+      "date": "2026-07-15",
+      "month_label": "Jul 2026",
+      "day": 15,
+      "weekday": "Wed",
+      "selected": false
+    },
+    {
+      "index": 17,
+      "date": "2026-07-16",
+      "month_label": "Jul 2026",
+      "day": 16,
+      "weekday": "Thu",
+      "selected": false
+    },
+    {
+      "index": 18,
+      "date": "2026-07-17",
+      "month_label": "Jul 2026",
+      "day": 17,
+      "weekday": "Fri",
+      "selected": false
+    },
+    {
+      "index": 19,
+      "date": "2026-07-18",
+      "month_label": "Jul 2026",
+      "day": 18,
+      "weekday": "Sat",
+      "selected": false
+    },
+    {
+      "index": 20,
+      "date": "2026-07-19",
+      "month_label": "Jul 2026",
+      "day": 19,
+      "weekday": "Sun",
+      "selected": false
+    },
+    {
+      "index": 21,
+      "date": "2026-07-20",
+      "month_label": "Jul 2026",
+      "day": 20,
       "weekday": "Mon",
       "selected": false
     }
@@ -150,223 +207,46 @@
   ],
   "bookings": [
     {
-      "date": "2026-06-16",
-      "column_index": 2,
-      "subcolumn_index": 1,
-      "slot_index": 22,
-      "slot_id": "91605",
+      "date": "2026-07-03",
+      "column_index": 5,
+      "subcolumn_index": 0,
+      "slot_index": 16,
+      "slot_id": "91705",
       "status": "busy",
-      "label": "91605 2024-067",
-      "start_time": "11:00",
-      "end_time": "13:00",
-      "start": "2026-06-16T11:00:00",
-      "end": "2026-06-16T13:00:00",
-      "text": "Slot type: Psychophysics lab EPL Behavioral Slot id: 91605 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (11:00-13:00) Neurophysiological mechanisms of mental simulation in humans",
-      "title": "i_2_1_22_busy",
+      "label": "91705 BEST - VS",
+      "start_time": "08:00",
+      "end_time": "14:00",
+      "start": "2026-07-03T08:00:00",
+      "end": "2026-07-03T14:00:00",
+      "text": "Slot type: Eyelink Ed10 Slot id: 91705 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (08:00-14:00) Behavioral, autonomic, and Electrophysiological SignaTures of Vestibular Stimulation (BEST - VS)",
+      "title": "i_5_0_16_busy",
       "metrics": {
-        "top_px": 120,
-        "height_px": 80,
+        "top_px": 0,
+        "height_px": 240,
         "left_px": 0,
         "width_px": 116
       }
     },
     {
-      "date": "2026-06-16",
-      "column_index": 2,
-      "subcolumn_index": 1,
-      "slot_index": 26,
-      "slot_id": "91654",
-      "status": "busy",
-      "label": "91654 ATCOM",
-      "start_time": "13:00",
-      "end_time": "14:30",
-      "start": "2026-06-16T13:00:00",
-      "end": "2026-06-16T14:30:00",
-      "text": "Slot type: Psychophysics lab EPL Behavioral Slot id: 91654 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (13:00-14:30) ATCOM: an attentional code for memory",
-      "title": "i_2_1_26_busy",
-      "metrics": {
-        "top_px": 200,
-        "height_px": 60,
-        "left_px": 0,
-        "width_px": 116
-      }
-    },
-    {
-      "date": "2026-06-17",
+      "date": "2026-07-15",
       "column_index": 3,
-      "subcolumn_index": 1,
-      "slot_index": 22,
-      "slot_id": "91606",
+      "subcolumn_index": 0,
+      "slot_index": 16,
+      "slot_id": "91699",
       "status": "busy",
-      "label": "91606 2024-067",
-      "start_time": "11:00",
+      "label": "91699 BEST - VS",
+      "start_time": "08:00",
       "end_time": "13:00",
-      "start": "2026-06-17T11:00:00",
-      "end": "2026-06-17T13:00:00",
-      "text": "Slot type: Psychophysics lab EPL Behavioral Slot id: 91606 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (11:00-13:00) Neurophysiological mechanisms of mental simulation in humans",
-      "title": "i_3_1_22_busy",
+      "start": "2026-07-15T08:00:00",
+      "end": "2026-07-15T13:00:00",
+      "text": "Slot type: Eyelink Ed10 Slot id: 91699 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (08:00-13:00) Behavioral, autonomic, and Electrophysiological SignaTures of Vestibular Stimulation (BEST - VS)",
+      "title": "i_3_0_16_busy",
       "metrics": {
-        "top_px": 120,
-        "height_px": 80,
-        "left_px": 0,
-        "width_px": 116
-      }
-    },
-    {
-      "date": "2026-06-18",
-      "column_index": 4,
-      "subcolumn_index": 1,
-      "slot_index": 22,
-      "slot_id": "91607",
-      "status": "busy",
-      "label": "91607 2024-067",
-      "start_time": "11:00",
-      "end_time": "13:00",
-      "start": "2026-06-18T11:00:00",
-      "end": "2026-06-18T13:00:00",
-      "text": "Slot type: Psychophysics lab EPL Behavioral Slot id: 91607 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (11:00-13:00) Neurophysiological mechanisms of mental simulation in humans",
-      "title": "i_4_1_22_busy",
-      "metrics": {
-        "top_px": 120,
-        "height_px": 80,
-        "left_px": 0,
-        "width_px": 116
-      }
-    },
-    {
-      "date": "2026-06-18",
-      "column_index": 4,
-      "subcolumn_index": 1,
-      "slot_index": 34,
-      "slot_id": "91673",
-      "status": "busy",
-      "label": "91673 ATCOM",
-      "start_time": "17:00",
-      "end_time": "19:00",
-      "start": "2026-06-18T17:00:00",
-      "end": "2026-06-18T19:00:00",
-      "text": "Slot type: Psychophysics lab EPL Behavioral Slot id: 91673 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (17:00-19:00) ATCOM: an attentional code for memory",
-      "title": "i_4_1_34_busy",
-      "metrics": {
-        "top_px": 360,
-        "height_px": 80,
-        "left_px": 0,
-        "width_px": 116
-      }
-    },
-    {
-      "date": "2026-06-23",
-      "column_index": 2,
-      "subcolumn_index": 1,
-      "slot_index": 18,
-      "slot_id": "91700",
-      "status": "busy",
-      "label": "91700 ATCOM",
-      "start_time": "09:00",
-      "end_time": "11:00",
-      "start": "2026-06-23T09:00:00",
-      "end": "2026-06-23T11:00:00",
-      "text": "Slot type: Psychophysics lab EPL Behavioral Slot id: 91700 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (09:00-11:00) ATCOM: an attentional code for memory",
-      "title": "i_2_1_18_busy",
-      "metrics": {
-        "top_px": 40,
-        "height_px": 80,
-        "left_px": 0,
-        "width_px": 116
-      }
-    },
-    {
-      "date": "2026-06-23",
-      "column_index": 2,
-      "subcolumn_index": 1,
-      "slot_index": 22,
-      "slot_id": "91694",
-      "status": "busy",
-      "label": "91694 2024-067",
-      "start_time": "11:00",
-      "end_time": "16:00",
-      "start": "2026-06-23T11:00:00",
-      "end": "2026-06-23T16:00:00",
-      "text": "Slot type: Psychophysics lab EPL Behavioral Slot id: 91694 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (11:00-16:00) Neurophysiological mechanisms of mental simulation in humans",
-      "title": "i_2_1_22_busy",
-      "metrics": {
-        "top_px": 120,
+        "top_px": 0,
         "height_px": 200,
         "left_px": 0,
-        "width_px": 116
+        "width_px": 115
       }
-    },
-    {
-      "date": "2026-06-24",
-      "column_index": 3,
-      "subcolumn_index": 1,
-      "slot_index": 22,
-      "slot_id": "91695",
-      "status": "busy",
-      "label": "91695 2024-067",
-      "start_time": "11:00",
-      "end_time": "16:00",
-      "start": "2026-06-24T11:00:00",
-      "end": "2026-06-24T16:00:00",
-      "text": "Slot type: Psychophysics lab EPL Behavioral Slot id: 91695 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (11:00-16:00) Neurophysiological mechanisms of mental simulation in humans",
-      "title": "i_3_1_22_busy",
-      "metrics": {
-        "top_px": 120,
-        "height_px": 200,
-        "left_px": 0,
-        "width_px": 116
-      }
-    },
-    {
-      "date": "2026-06-25",
-      "column_index": 4,
-      "subcolumn_index": 1,
-      "slot_index": 19,
-      "slot_id": "91663",
-      "status": "busy",
-      "label": "91663 PUPIL-LEARN",
-      "start_time": "09:30",
-      "end_time": "11:00",
-      "start": "2026-06-25T09:30:00",
-      "end": "2026-06-25T11:00:00",
-      "text": "Slot type: Psychophysics lab EPL Behavioral Slot id: 91663 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (09:30-11:00) PUPIL-LEARN: L'occhio come finestra diretta sull'apprendimento e i suoi disturbi - un progetto per comprendere l'origine dei DSA (Adulti)",
-      "title": "i_4_1_19_busy",
-      "metrics": {
-        "top_px": 60,
-        "height_px": 60,
-        "left_px": 0,
-        "width_px": 116
-      }
-    },
-    {
-      "date": "2026-06-25",
-      "column_index": 4,
-      "subcolumn_index": 1,
-      "slot_index": 22,
-      "slot_id": "91696",
-      "status": "busy",
-      "label": "91696 2024-067",
-      "start_time": "11:00",
-      "end_time": "16:00",
-      "start": "2026-06-25T11:00:00",
-      "end": "2026-06-25T16:00:00",
-      "text": "Slot type: Psychophysics lab EPL Behavioral Slot id: 91696 Slot reserved to: People with profile: researcher (08:00-19:00) Related project: (11:00-16:00) Neurophysiological mechanisms of mental simulation in humans",
-      "title": "i_4_1_22_busy",
-      "metrics": {
-        "top_px": 120,
-        "height_px": 200,
-        "left_px": 0,
-        "width_px": 116
-      }
-    }
-  ],
-  "subresources": [
-    {
-      "id": "sr_list_138",
-      "value": "138",
-      "label": "PF2-Psychophisic lab 315",
-      "title": "Psychophisic lab 315",
-      "selected": true
     }
   ]
 }

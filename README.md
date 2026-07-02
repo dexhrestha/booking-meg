@@ -19,12 +19,16 @@ Replace the flyer image in `assets/`, or update the relevant experiment page.
 
 ## Booking data
 
-Accepted bookings are stored in `data/bookings.json`. Admin-blocked slots are
-stored in `data/blocked-slots.json`. The API prevents participants from booking
-the same date and slot as another participant or an admin block.
+Accepted bookings are stored locally in `data/bookings.json`. Admin-blocked
+slots are stored locally in `data/blocked-slots.json`, and local reads also
+include files named like `data/blocked_slots*.json`. The API prevents
+participants from booking the same date and slot as another participant or an
+admin block.
 
-For Vercel, connect Vercel Blob and set this environment variable so bookings
-can persist:
+Local development, including `vercel dev`, always uses the local `data/`
+folder even if Blob env vars are present. Deployed Vercel preview/production
+environments use Vercel Blob, so connect Blob and set this environment variable
+there:
 
 ```bash
 BLOB_READ_WRITE_TOKEN=...
@@ -46,6 +50,16 @@ BOOKING_ADMIN_PASSWORD=...
 VIEW_BOOKINGS_PASSWORD=...
 ADMIN_PASSWORD=...
 ```
+
+Admin ICS downloads are available per experiment:
+
+```bash
+/api/admin/calendar/meg-study/ics?password=...
+/api/admin/calendar/sensorimotor-study/ics?password=...
+```
+
+The ICS exports include participant bookings and manual blocked slots only.
+External CIMeC calendar blocks are intentionally excluded from the downloads.
 
 ## Test Vercel Blob
 

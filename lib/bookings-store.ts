@@ -1,16 +1,26 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "fs/promises";
 import path from "path";
 import { get, put } from "@vercel/blob";
 import { BlockedSlotEntry, BookingEntry } from "@/lib/booking";
 
 const bookingsFile = path.join(process.cwd(), "data", "bookings.json");
 const blockedSlotsFile = path.join(process.cwd(), "data", "blocked-slots.json");
+const dataDirectory = path.join(process.cwd(), "data");
 const bookingsBlobPath = process.env.BLOB_BOOKINGS_PATH ?? "bookings.json";
 const blockedSlotsBlobPath =
   process.env.BLOB_BLOCKED_SLOTS_PATH ?? "blocked-slots.json";
+const blockedSlotsLocalFilePattern = /^blocked[-_]slots.*\.json$/i;
 
 function hasBlobToken() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+function isVercelDeployment() {
+  return process.env.VERCEL === "1" && process.env.VERCEL_ENV !== "development";
+}
+
+function shouldUseBlobStorage() {
+  return isVercelDeployment();
 }
 
 async function streamToText(stream: ReadableStream<Uint8Array>) {
@@ -18,6 +28,10 @@ async function streamToText(stream: ReadableStream<Uint8Array>) {
 }
 
 async function readBlobJson<T>(blobPath: string): Promise<T[]> {
+  if (!hasBlobToken()) {
+    throw new Error("Vercel Blob read not configured (missing BLOB_READ_WRITE_TOKEN).");
+  }
+
   try {
     const result = await get(blobPath, { access: "private" });
 
@@ -63,13 +77,35 @@ async function readLocalJson<T>(filePath: string): Promise<T[]> {
   }
 }
 
+async function readLocalJsonFiles<T>(
+  directoryPath: string,
+  filePattern: RegExp,
+): Promise<T[]> {
+  try {
+    const fileNames = await readdir(directoryPath);
+    const matchingFilePaths = fileNames
+      .filter((fileName) => filePattern.test(fileName))
+      .sort()
+      .map((fileName) => path.join(directoryPath, fileName));
+
+    const data = await Promise.all(
+      matchingFilePaths.map((filePath) => readLocalJson<T>(filePath)),
+    );
+
+    return data.flat();
+  } catch (error: any) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
 async function writeLocalJson<T>(filePath: string, data: T[]) {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, JSON.stringify(data, null, 2) + "\n");
 }
 
 export async function readBookings(): Promise<BookingEntry[]> {
-  if (hasBlobToken()) {
+  if (shouldUseBlobStorage()) {
     return readBlobJson<BookingEntry>(bookingsBlobPath);
   }
 
@@ -77,7 +113,7 @@ export async function readBookings(): Promise<BookingEntry[]> {
 }
 
 export async function writeBookings(bookings: BookingEntry[]) {
-  if (hasBlobToken()) {
+  if (shouldUseBlobStorage()) {
     await writeBlobJson(bookingsBlobPath, bookings);
     return;
   }
@@ -86,15 +122,18 @@ export async function writeBookings(bookings: BookingEntry[]) {
 }
 
 export async function readBlockedSlots(): Promise<BlockedSlotEntry[]> {
-  if (hasBlobToken()) {
+  if (shouldUseBlobStorage()) {
     return readBlobJson<BlockedSlotEntry>(blockedSlotsBlobPath);
   }
 
-  return readLocalJson<BlockedSlotEntry>(blockedSlotsFile);
+  return readLocalJsonFiles<BlockedSlotEntry>(
+    dataDirectory,
+    blockedSlotsLocalFilePattern,
+  );
 }
 
 export async function writeBlockedSlots(blockedSlots: BlockedSlotEntry[]) {
-  if (hasBlobToken()) {
+  if (shouldUseBlobStorage()) {
     await writeBlobJson(blockedSlotsBlobPath, blockedSlots);
     return;
   }

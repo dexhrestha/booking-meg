@@ -1,10 +1,17 @@
-import cimecCalendarResource3Subresource138 from "@/data/cimec_calendar_resource-3_subresource-138.json";
-import cimecCalendarResource13 from "@/data/cimec_calendar_resource-13.json";
-import { getSlotOptions, slotKey, StudyTag } from "@/lib/booking";
+import { readFileSync, readdirSync } from "fs";
+import path from "path";
+import {
+  BlockedSlotEntry,
+  getSlotOptions,
+  slotKey,
+  studyConfigs,
+  StudyTag,
+} from "@/lib/booking";
 
 type CimecCalendarBooking = {
   date?: string;
   details?: string;
+  label?: string;
   status?: string;
   start_time?: string;
   end_time?: string;
@@ -13,14 +20,46 @@ type CimecCalendarBooking = {
 
 type CimecCalendarResource = {
   bookings?: CimecCalendarBooking[];
+  resource?: {
+    label?: string;
+    value?: string;
+  };
 };
 
-const cimecCalendarResources: CimecCalendarResource[] = [
-  cimecCalendarResource3Subresource138,
-  cimecCalendarResource13,
-];
+export type CimecBlockedSlotEntry = BlockedSlotEntry & {
+  source: "cimec-calendar";
+  sourceLabel: string;
+  timeRange: string;
+};
+
+const cimecCalendarFilePattern = /^cimec_calendar.*\.json$/i;
 
 const mentalSimulationPattern = /mental\s+simulation/i;
+const eyelinkResourcePattern = /\beyelink\b/i;
+
+function readCimecCalendarResources() {
+  const dataDirectory = path.join(process.cwd(), "data");
+
+  try {
+    return readdirSync(dataDirectory)
+      .filter((fileName) => cimecCalendarFilePattern.test(fileName))
+      .sort()
+      .flatMap((fileName) => {
+        const filePath = path.join(dataDirectory, fileName);
+        const parsed = JSON.parse(readFileSync(filePath, "utf8")) as
+          | CimecCalendarResource
+          | CimecCalendarResource[];
+
+        return Array.isArray(parsed) ? parsed : [parsed];
+      });
+  } catch (error: any) {
+    if (error?.code === "ENOENT") {
+      return [];
+    }
+
+    throw error;
+  }
+}
 
 function timeToMinutes(time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -71,13 +110,29 @@ function hasMentalSimulationDetails(booking: CimecCalendarBooking) {
   return mentalSimulationPattern.test(details);
 }
 
+function isResourceRelevantForStudy(
+  resource: CimecCalendarResource,
+  tag: StudyTag,
+) {
+  if (tag !== "sensorimotor-study") {
+    return true;
+  }
+
+  const resourceName = [
+    resource.resource?.label,
+    resource.resource?.value,
+  ].filter(Boolean).join(" ");
+
+  return eyelinkResourcePattern.test(resourceName);
+}
+
 export function getCimecOccupiedSlotKeys(tag: StudyTag, date: string) {
   const occupied = new Set<string>();
   const slotOptions = getSlotOptions(tag);
 
-  for (const booking of cimecCalendarResources.flatMap(
-    (resource) => resource.bookings ?? [],
-  )) {
+  for (const booking of readCimecCalendarResources()
+    .filter((resource) => isResourceRelevantForStudy(resource, tag))
+    .flatMap((resource) => resource.bookings ?? [])) {
     if (
       booking.date !== date ||
       booking.status !== "busy" ||
@@ -114,4 +169,85 @@ export function getCimecOccupiedSlotKeys(tag: StudyTag, date: string) {
   }
 
   return [...occupied];
+}
+
+export function getCimecBlockedSlots() {
+  const blockedSlots = new Map<string, CimecBlockedSlotEntry>();
+
+  for (const resource of readCimecCalendarResources()) {
+    const sourceLabel =
+      resource.resource?.label ??
+      resource.resource?.value ??
+      "CIMeC calendar";
+
+    for (const booking of resource.bookings ?? []) {
+      if (
+        booking.status !== "busy" ||
+        hasMentalSimulationDetails(booking) ||
+        !booking.date ||
+        !booking.start_time ||
+        !booking.end_time
+      ) {
+        continue;
+      }
+
+      const bookingStart = timeToMinutes(booking.start_time);
+      const bookingEnd = timeToMinutes(booking.end_time);
+
+      if (
+        bookingStart === null ||
+        bookingEnd === null ||
+        bookingEnd <= bookingStart
+      ) {
+        continue;
+      }
+
+      const bookingRange = {
+        startMinutes: bookingStart,
+        endMinutes: bookingEnd,
+      };
+
+      for (const study of Object.values(studyConfigs)) {
+        if (!isResourceRelevantForStudy(resource, study.tag)) {
+          continue;
+        }
+
+        for (const slot of study.slotOptions) {
+          const slotRange = parseSlotRange(slot);
+
+          if (!slotRange || !rangesOverlap(bookingRange, slotRange)) {
+            continue;
+          }
+
+          const id = `cimec-${study.tag}-${booking.date}-${slot}`;
+          const timeRange = `${booking.start_time} - ${booking.end_time}`;
+          const existing = blockedSlots.get(id);
+          const sourceAlreadyListed =
+            existing?.sourceLabel.split(", ").includes(sourceLabel) ?? false;
+
+          blockedSlots.set(id, {
+            id,
+            tag: study.tag,
+            date: booking.date,
+            slot,
+            note: booking.label ?? booking.details ?? undefined,
+            createdAt: "",
+            source: "cimec-calendar",
+            sourceLabel:
+              existing && !sourceAlreadyListed
+                ? `${existing.sourceLabel}, ${sourceLabel}`
+                : existing?.sourceLabel ?? sourceLabel,
+            timeRange: existing?.timeRange ?? timeRange,
+          });
+        }
+      }
+    }
+  }
+
+  return [...blockedSlots.values()].sort(
+    (firstSlot, secondSlot) =>
+      firstSlot.date.localeCompare(secondSlot.date) ||
+      firstSlot.slot.localeCompare(secondSlot.slot) ||
+      firstSlot.sourceLabel.localeCompare(secondSlot.sourceLabel),
+  );
 }

@@ -16,10 +16,10 @@ const experiments: ExperimentCard[] = [
   {
     title: studyConfigs["meg-study"].title,
     description:
-      "Book four MEG sessions for the long-term memory study, starting on an available Tuesday.",
+      "Book four MEG sessions for the long-term memory study, starting on an available Thursday.",
     href: "/meg",
     image: flyerMegEng,
-    meta: "4 sessions · Tuesday start",
+    meta: "4 sessions · Thursday start",
   },
   {
     title: studyConfigs["sensorimotor-study"].title,
