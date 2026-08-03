@@ -1,12 +1,5 @@
-import flyerSpeedEng from "@/assets/flyer_ita_speed.png";
-import { StudyBookingPage } from "@/components/study-booking-page";
-import { studyConfigs } from "@/lib/booking";
+import { redirect } from "next/navigation";
 
 export default function SensorimotorStudyPage() {
-  return (
-    <StudyBookingPage
-      flyer={flyerSpeedEng}
-      study={studyConfigs["sensorimotor-study"]}
-    />
-  );
+  redirect("/september");
 }

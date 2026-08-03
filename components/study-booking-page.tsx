@@ -123,10 +123,10 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   );
   const validationMessages: string[] = [
     !usesPerSessionDates && !startDateSelected
-      ? `Choose a Thursday for the first session within the next 4 weeks, through ${latestBookingDate}.`
+      ? `Choose a Thursday for the first session through ${latestBookingDate}.`
       : "",
     usesPerSessionDates && missingDates.length > 0
-      ? `Choose Session 1 on a Monday or Tuesday within 8 weeks, then keep Sessions 2-4 on weekdays in that same week, on or after the previous session date.`
+      ? `Choose Session 1 on a Monday or Tuesday through ${latestSensorimotorBookingDate}, then keep Sessions 2-4 on weekdays in that same week, on or after the previous session date.`
       : "",
     !emailLooksValid ? "Enter a valid email address." : "",
     missingSlots.length > 0
@@ -259,7 +259,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       setOccupiedSlots(emptyOccupiedSlots());
       setOccupiedSlotReasons(emptyOccupiedSlotReasons());
       setMessage(
-        `Choose a Thursday first-session date within the next 4 weeks, through ${latestBookingDate}.`,
+        `Choose a Thursday first-session date through ${latestBookingDate}.`,
       );
       return;
     }
@@ -311,7 +311,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       !isAllowedSensorimotorFirstSessionDate(value)
     ) {
       setMessage(
-        `Choose Session 1 on a Monday or Tuesday within the next 8 weeks, through ${latestSensorimotorBookingDate}.`,
+        `Choose Session 1 on a Monday or Tuesday through ${latestSensorimotorBookingDate}.`,
       );
       return;
     }
@@ -521,7 +521,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                 }
               />
               <small>
-                Session 1 must start on a Thursday within the next 4 weeks.
+                Session 1 must start on a Thursday through {latestBookingDate}.
               </small>
             </label>
           ) : null}
@@ -626,7 +626,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                       }
                       note={
                         session.id === "session1"
-                          ? `Select a Monday or Tuesday within the next 8 weeks, through ${latestSensorimotorBookingDate}.`
+                          ? `Select a Monday or Tuesday through ${latestSensorimotorBookingDate}.`
                           : "Select a weekday in the same week, on or after the previous session date."
                       }
                       placeholder={

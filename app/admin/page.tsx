@@ -917,7 +917,7 @@ export default function ViewBookingsPage() {
                               editingBooking.firstSessionDate,
                             )
                           }
-                          note={`Select a Thursday within the next 4 weeks, through ${formatDisplayDate(getLatestFirstSessionDate())}.`}
+                          note={`Select a Thursday through ${formatDisplayDate(getLatestFirstSessionDate())}.`}
                         />
                       ) : (
                         <input

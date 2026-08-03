@@ -365,8 +365,8 @@ export async function POST(request: NextRequest) {
         {
           message:
             tag === "sensorimotor-study"
-              ? `Enter a valid email, choose Session 1 on a Monday or Tuesday within the next 8 weeks through ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`
-              : `Enter a valid email, choose a Thursday date within the next 4 weeks through ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
+              ? `Enter a valid email, choose Session 1 on a Monday or Tuesday through ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`
+              : `Enter a valid email, choose a Thursday date through ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
         },
         { status: 400 },
       );
@@ -487,8 +487,8 @@ export async function PUT(request: NextRequest) {
       {
         message:
           tag === "sensorimotor-study"
-            ? `Enter a valid email, choose Session 1 on a Monday or Tuesday within the next 8 weeks through ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`
-            : `Enter a valid email, choose a Thursday date within the next 4 weeks through ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
+            ? `Enter a valid email, choose Session 1 on a Monday or Tuesday through ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`
+            : `Enter a valid email, choose a Thursday date through ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
       },
       { status: 400 },
     );

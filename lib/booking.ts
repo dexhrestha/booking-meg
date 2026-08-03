@@ -110,6 +110,7 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
 };
 
 export const defaultStudyTag: StudyTag = "meg-study";
+export const bookingWindowEndDate = "2026-10-31";
 
 export const slotOptions = studyConfigs[defaultStudyTag].slotOptions;
 
@@ -178,30 +179,30 @@ function startOfToday() {
 }
 
 export function getLatestFirstSessionDate() {
-  return getLatestBookingDate(4);
+  return bookingWindowEndDate;
 }
 
-export function getLatestBookingDate(weeks: number) {
-  const latestDate = startOfToday();
-  latestDate.setDate(latestDate.getDate() + weeks * 7);
-
-  return formatIsoDate(latestDate);
+export function getLatestBookingDate(_weeks: number) {
+  return bookingWindowEndDate;
 }
 
 export function isWithinBookingWindow(date: string) {
-  return isWithinBookingWindowWeeks(date, 4);
+  return isWithinBookingWindowUntil(date, bookingWindowEndDate);
 }
 
 export function isWithinBookingWindowWeeks(date: string, weeks: number) {
-  const parsedDate = parseIsoDate(date);
+  return isWithinBookingWindowUntil(date, getLatestBookingDate(weeks));
+}
 
-  if (!parsedDate) {
+export function isWithinBookingWindowUntil(date: string, endDate: string) {
+  const parsedDate = parseIsoDate(date);
+  const latestDate = parseIsoDate(endDate);
+
+  if (!parsedDate || !latestDate) {
     return false;
   }
 
   const today = startOfToday();
-  const latestDate = startOfToday();
-  latestDate.setDate(today.getDate() + weeks * 7);
 
   return parsedDate >= today && parsedDate <= latestDate;
 }

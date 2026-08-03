@@ -289,8 +289,8 @@ export async function PUT(request: NextRequest) {
       {
         message:
           tag === "sensorimotor-study"
-            ? `Enter a valid email, choose Session 1 on a Monday or Tuesday within the next 8 weeks through ${formatDisplayDate(getLatestBookingDate(8))}, and keep the remaining sessions on weekdays in that same week.`
-            : `Enter a valid email and a Thursday first-session date within the next 4 weeks, through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
+            ? `Enter a valid email, choose Session 1 on a Monday or Tuesday through ${formatDisplayDate(getLatestBookingDate(8))}, and keep the remaining sessions on weekdays in that same week.`
+            : `Enter a valid email and a Thursday first-session date through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
       },
       { status: 400 },
     );

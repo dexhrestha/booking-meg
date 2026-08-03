@@ -1,12 +1,5 @@
-import flyerMegEng from "@/assets/flyer_MEG_eng.png";
-import { StudyBookingPage } from "@/components/study-booking-page";
-import { studyConfigs } from "@/lib/booking";
+import { redirect } from "next/navigation";
 
 export default function MegStudyPage() {
-  return (
-    <StudyBookingPage
-      flyer={flyerMegEng}
-      study={studyConfigs["meg-study"]}
-    />
-  );
+  redirect("/september");
 }

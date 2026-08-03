@@ -38,6 +38,14 @@ BLOB_READ_WRITE_TOKEN=...
 the project. The app stores the same array schema as `data/bookings.json` and
 `data/blocked-slots.json` in private Blob objects.
 
+The temporary September notification form stores addresses locally in
+`data/september-signups.json`, or in the private `september-signups.json` Blob
+object when deployed. Its Blob path can be customized with:
+
+```bash
+BLOB_SEPTEMBER_SIGNUPS_PATH=september-signups.json
+```
+
 ```bash
 BLOB_BOOKINGS_PATH=bookings.json
 BLOB_BLOCKED_SLOTS_PATH=blocked-slots.json
