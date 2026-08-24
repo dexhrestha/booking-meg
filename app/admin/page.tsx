@@ -46,7 +46,7 @@ type CalendarEvent = {
   actions?: ReactNode;
 };
 
-const calendarDayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const calendarDayLabels = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
 const calendarStartMinutes = 8 * 60;
 const calendarEndMinutes = 19 * 60;
 const calendarHourLabels = Array.from({ length: 12 }, (_, index) => {
@@ -80,8 +80,8 @@ function parseLocalDate(date: string) {
 function getWeekStart(date: Date) {
   const weekStart = new Date(date);
   const weekday = weekStart.getDay();
-  const daysSinceMonday = weekday === 0 ? 6 : weekday - 1;
-  weekStart.setDate(weekStart.getDate() - daysSinceMonday);
+  const daysSinceThursday = (weekday - 4 + 7) % 7;
+  weekStart.setDate(weekStart.getDate() - daysSinceThursday);
   weekStart.setHours(0, 0, 0, 0);
 
   return weekStart;
