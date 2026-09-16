@@ -4,7 +4,7 @@ import flyerMegEng from "@/assets/flyer_MEG_eng.png";
 import flyerSpeedEng from "@/assets/flyer_ita_speed.png";
 import { studyConfigs } from "@/lib/booking";
 
-import { redirect } from "next/navigation";
+// import { redirect } from "next/navigation";
 
 
 type ExperimentCard = {

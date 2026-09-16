@@ -1509,7 +1509,7 @@ select {
   gap: 8px;
 }
 
-.admin-actions button:nth-child(2) {
+.admin-actions button:not(:first-child) {
   background: var(--surface);
   color: var(--accent-dark);
 }

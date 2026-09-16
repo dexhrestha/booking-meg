@@ -1,6 +1,13 @@
 "use client";
 
-import { CSSProperties, FormEvent, ReactNode, useMemo, useState } from "react";
+import {
+  CSSProperties,
+  FormEvent,
+  ReactNode,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import { FirstSessionDatePicker } from "@/components/first-session-date-picker";
 import {
   BlockedSlotEntry,
@@ -301,6 +308,31 @@ function buildIcsCalendar(events: CalendarEvent[], selectedWeekDate: string) {
   return lines.map(foldIcsLine).join("\r\n") + "\r\n";
 }
 
+function buildConfirmationEmail(booking: BookingEntry) {
+  const study = getStudyConfig(getBookingTag(booking));
+  const sessionLines = sessionConfigs.map((session) => {
+    const selection = booking.selections[session.id];
+
+    return `${session.title}: ${selection.day}, ${formatDisplayDate(
+      selection.date,
+    )}, ${selection.slot}`;
+  });
+
+  return {
+    subject: `Booking confirmation - ${study.title}`,
+    body: [
+      "Hello,",
+      "",
+      `Your ${study.title} booking is confirmed.`,
+      "",
+      ...sessionLines,
+      "",
+      "Best,",
+      "MEG Lab",
+    ].join("\n"),
+  };
+}
+
 export default function ViewBookingsPage() {
   const [password, setPassword] = useState("");
   const [bookings, setBookings] = useState<BookingEntry[]>([]);
@@ -322,6 +354,26 @@ export default function ViewBookingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [studyFilter, setStudyFilter] = useState<StudyFilter>("all");
   const [selectedWeekDate, setSelectedWeekDate] = useState(getTodayIsoDate);
+
+  const generateConfirmationEmail = useCallback(async (booking: BookingEntry) => {
+    const email = buildConfirmationEmail(booking);
+    const mailto = `mailto:${encodeURIComponent(
+      booking.email,
+    )}?subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(
+      email.body,
+    )}`;
+
+    try {
+      await navigator.clipboard.writeText(email.body);
+      setMessage(
+        "Confirmation email copied and opened in your mail app. Paste the copied text if the body is not filled automatically.",
+      );
+    } catch {
+      setMessage("Confirmation email opened in your mail app.");
+    }
+
+    window.location.href = mailto;
+  }, []);
 
   const visibleBookings = useMemo(() => {
     return bookings.filter(
@@ -430,6 +482,12 @@ export default function ViewBookingsPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => generateConfirmationEmail(booking)}
+                >
+                  Generate email
+                </button>
+                <button
+                  type="button"
                   onClick={() => removeBooking(booking.id)}
                   disabled={isLoading}
                 >
@@ -447,7 +505,12 @@ export default function ViewBookingsPage() {
           firstEvent.slot.localeCompare(secondEvent.slot) ||
           firstEvent.title.localeCompare(secondEvent.title),
       );
-  }, [isLoading, selectedWeekDate, visibleBookings]);
+  }, [
+    generateConfirmationEmail,
+    isLoading,
+    selectedWeekDate,
+    visibleBookings,
+  ]);
 
   const calendarEvents = useMemo(() => {
     return [...bookingCalendarEvents, ...blockedCalendarEvents].toSorted(
@@ -975,6 +1038,12 @@ export default function ViewBookingsPage() {
                       disabled={isLoading}
                     >
                       Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => generateConfirmationEmail(editingBooking)}
+                    >
+                      Generate email
                     </button>
                     <button type="button" onClick={() => setEditingBooking(null)}>
                       Cancel
