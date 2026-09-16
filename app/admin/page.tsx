@@ -308,27 +308,59 @@ function buildIcsCalendar(events: CalendarEvent[], selectedWeekDate: string) {
   return lines.map(foldIcsLine).join("\r\n") + "\r\n";
 }
 
+function formatEmailDate(date: string) {
+  const parsedDate = parseLocalDate(date);
+
+  if (!parsedDate) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(parsedDate);
+}
+
+function formatEmailSlot(slot: string) {
+  return slot.replace(" - ", "–");
+}
+
 function buildConfirmationEmail(booking: BookingEntry) {
-  const study = getStudyConfig(getBookingTag(booking));
   const sessionLines = sessionConfigs.map((session) => {
     const selection = booking.selections[session.id];
 
-    return `${session.title}: ${selection.day}, ${formatDisplayDate(
+    return `- ${session.title}: ${formatEmailDate(
       selection.date,
-    )}, ${selection.slot}`;
+    )}, ${formatEmailSlot(selection.slot)}`;
   });
 
   return {
-    subject: `Booking confirmation - ${study.title}`,
+    subject: "Confirmation of MEG Study Booking and Eligibility",
     body: [
-      "Hello,",
+      "Dear participant,",
       "",
-      `Your ${study.title} booking is confirmed.`,
+      "I am writing to confirm your booking for the following dates and times:",
       "",
       ...sessionLines,
       "",
-      "Best,",
-      "MEG Lab",
+      "Could you please confirm that these dates and times work for you?",
+      "",
+      "Before we finalize your participation, could you also confirm that you meet all of the following eligibility criteria:",
+      "",
+      "you are 18–35 years old, right-handed, and have normal or corrected-to-normal vision;",
+      "",
+      "you have no metal implants, non-removable piercings, or other non-removable metal;",
+      "",
+      "no metal dental retainers or splints; no braids, extensions, or non-removable head coverings that could interfere with the MEG setup;",
+      "",
+      "and no current neurological, psychological, or psychiatric diagnosis.",
+      "",
+      "Thank you, and I look forward to your confirmation.",
+      "",
+      "Best regards,",
+      "Dipesh Shrestha",
     ].join("\n"),
   };
 }
