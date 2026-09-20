@@ -9,6 +9,7 @@ import {
   getBlockedSlotTag,
   getBookingTag,
   getDayForDate,
+  getEarliestBookingDate,
   getLatestBookingDate,
   getLatestFirstSessionDate,
   getSessionDate,
@@ -22,6 +23,7 @@ import {
   isWithinSameWeek,
   isWeekdayDate,
   isValidEmail,
+  isValidParticipantName,
   OccupiedSlotReasons,
   SessionId,
   sessionConfigs,
@@ -344,18 +346,23 @@ export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as {
       email?: string;
+      name?: string;
+      criteriaAccepted?: boolean;
       tag?: string;
       firstSessionDate?: string;
       selections?: BookingState;
     };
     const tag = getStudyTag(payload.tag);
     const study = getStudyConfig(tag);
+    const name = payload.name?.trim() ?? "";
     const email = payload.email?.trim().toLowerCase() ?? "";
     const firstSessionDate = payload.firstSessionDate ?? "";
     const selections = payload.selections;
 
     if (
+      !isValidParticipantName(name) ||
       !isValidEmail(email) ||
+      payload.criteriaAccepted !== true ||
       (tag === "sensorimotor-study"
         ? !isAllowedSensorimotorFirstSessionDate(firstSessionDate)
         : !isAllowedFirstSessionDate(firstSessionDate)) ||
@@ -365,8 +372,8 @@ export async function POST(request: NextRequest) {
         {
           message:
             tag === "sensorimotor-study"
-              ? `Enter a valid email, choose Session 1 on a Monday or Tuesday through ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`
-              : `Enter a valid email, choose a Thursday date through ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
+              ? `Enter your name and a valid email, accept the eligibility criteria, choose Session 1 on a Monday or Tuesday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`
+              : `Enter your name and a valid email, accept the eligibility criteria, choose a Thursday date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
         },
         { status: 400 },
       );
@@ -427,9 +434,11 @@ export async function POST(request: NextRequest) {
     const booking: BookingEntry = {
       id: crypto.randomUUID(),
       tag,
+      name,
       email,
       firstSessionDate,
       selections,
+      criteriaAcceptedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
 
@@ -464,6 +473,8 @@ export async function PUT(request: NextRequest) {
     const payload = (await request.json()) as {
       id?: string;
       email?: string;
+      name?: string;
+      criteriaAccepted?: boolean;
       tag?: string;
       firstSessionDate?: string;
       selections?: BookingState;
@@ -471,13 +482,16 @@ export async function PUT(request: NextRequest) {
   const tag = getStudyTag(payload.tag);
   const study = getStudyConfig(tag);
   const id = payload.id ?? "";
+  const name = payload.name?.trim() ?? "";
   const email = payload.email?.trim().toLowerCase() ?? "";
   const firstSessionDate = payload.firstSessionDate ?? "";
   const selections = payload.selections;
 
   if (
     !id ||
+    !isValidParticipantName(name) ||
     !isValidEmail(email) ||
+    payload.criteriaAccepted !== true ||
     (tag === "sensorimotor-study"
       ? !isAllowedSensorimotorFirstSessionDate(firstSessionDate)
       : !isAllowedFirstSessionDate(firstSessionDate)) ||
@@ -487,8 +501,8 @@ export async function PUT(request: NextRequest) {
       {
         message:
           tag === "sensorimotor-study"
-            ? `Enter a valid email, choose Session 1 on a Monday or Tuesday through ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`
-            : `Enter a valid email, choose a Thursday date through ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
+            ? `Enter your name and a valid email, accept the eligibility criteria, choose Session 1 on a Monday or Tuesday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`
+            : `Enter your name and a valid email, accept the eligibility criteria, choose a Thursday date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
       },
       { status: 400 },
     );
@@ -545,9 +559,11 @@ export async function PUT(request: NextRequest) {
   const booking: BookingEntry = {
     ...bookings[bookingIndex],
     tag,
+    name,
     email,
     firstSessionDate,
     selections,
+    criteriaAcceptedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
   const updatedBookings = removeExtraBookingsForEmail(

@@ -66,6 +66,20 @@ Admin ICS downloads are available per experiment:
 /api/admin/calendar/sensorimotor-study/ics?password=...
 ```
 
+For calendar subscriptions or a polling agent, prefer a separate feed token so
+the admin password does not need to live in a calendar URL:
+
+```bash
+CALENDAR_FEED_TOKEN=use-a-long-random-value
+```
+
+Then subscribe or poll these feed URLs:
+
+```bash
+/api/admin/calendar/meg-study/ics?token=...
+/api/admin/calendar/sensorimotor-study/ics?token=...
+```
+
 The ICS exports include participant bookings and manual blocked slots only.
 External CIMeC calendar blocks are intentionally excluded from the downloads.
 

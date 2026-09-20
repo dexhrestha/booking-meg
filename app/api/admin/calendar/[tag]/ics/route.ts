@@ -16,14 +16,23 @@ function getAdminPassword() {
   );
 }
 
+function getCalendarFeedToken() {
+  return process.env.CALENDAR_FEED_TOKEN ?? "";
+}
+
 function isAuthorized(request: NextRequest) {
   const password =
     request.headers.get("x-admin-password") ??
     request.nextUrl.searchParams.get("password") ??
     "";
+  const feedToken = request.nextUrl.searchParams.get("token") ?? "";
   const adminPassword = getAdminPassword();
+  const calendarFeedToken = getCalendarFeedToken();
 
-  return adminPassword !== "" && password === adminPassword;
+  return (
+    (adminPassword !== "" && password === adminPassword) ||
+    (calendarFeedToken !== "" && feedToken === calendarFeedToken)
+  );
 }
 
 function unauthorizedResponse() {

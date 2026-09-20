@@ -451,6 +451,12 @@ select {
   line-height: 1.1;
 }
 
+.participant-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.participant-field,
 .email-field,
 .date-field,
 .session-column label {
@@ -462,11 +468,13 @@ select {
   font-weight: 700;
 }
 
+.participant-field::after,
 .email-field::after {
   content: "";
   min-height: 1rem;
 }
 
+.participant-field input,
 .email-field input,
 .date-field input,
 .session-column select {
@@ -479,6 +487,7 @@ select {
   padding: 0 12px;
 }
 
+.participant-field input:focus,
 .email-field input:focus,
 .date-field input:focus,
 .session-column select:focus,
@@ -487,9 +496,51 @@ select {
   outline: 3px solid rgba(12, 118, 110, 0.18);
 }
 
+.participant-field input[aria-invalid="true"],
 .email-field input[aria-invalid="true"],
 .date-field input[aria-invalid="true"] {
   border-color: var(--warning);
+}
+
+.criteria-panel {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+  border: 1px solid rgba(12, 118, 110, 0.22);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: clamp(16px, 3vw, 22px);
+}
+
+.criteria-panel h3 {
+  margin: 3px 0 0;
+  font-size: 1.15rem;
+}
+
+.criteria-panel ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.criteria-acceptance {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.criteria-acceptance input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
 }
 
 .date-field small {

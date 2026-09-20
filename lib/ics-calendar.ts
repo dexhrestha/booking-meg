@@ -88,21 +88,27 @@ function getBookingEvents(bookings: BookingEntry[], tag: StudyTag) {
     .flatMap((booking) =>
       sessionConfigs.map((session) => {
         const selection = booking.selections[session.id];
+        const participant = booking.name
+          ? `${booking.name} <${booking.email}>`
+          : booking.email;
 
         return {
           id: `booking-${booking.id}-${session.id}`,
           date: selection.date,
           slot: selection.slot,
-          summary: `${study.title}: ${session.title} - ${booking.email}`,
+          summary: `${study.title}: ${session.title} - ${participant}`,
           description: [
             `Type: Booking`,
             `Experiment: ${study.title}`,
-            `Participant: ${booking.email}`,
+            booking.name ? `Name: ${booking.name}` : undefined,
+            `Email: ${booking.email}`,
             `Session: ${session.title}`,
             `Date: ${formatDisplayDate(selection.date)}`,
             `Day: ${selection.day}`,
             `Slot: ${selection.slot}`,
-          ].join("\n"),
+          ]
+            .filter(Boolean)
+            .join("\n"),
         } satisfies IcsEvent;
       }),
     );

@@ -7,6 +7,7 @@ import {
   getBlockedSlotTag,
   getBookingTag,
   getDayForDate,
+  getEarliestBookingDate,
   getLatestBookingDate,
   getLatestFirstSessionDate,
   getSessionDate,
@@ -20,6 +21,7 @@ import {
   isWithinSameWeek,
   isWeekdayDate,
   isValidEmail,
+  isValidParticipantName,
   sessionConfigs,
   StudyTag,
 } from "@/lib/booking";
@@ -276,10 +278,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const email = booking.email.trim().toLowerCase();
+    const name = booking.name?.trim() ?? "";
     const tag = getStudyTag(booking.tag);
 
   if (
     !booking.id ||
+    !isValidParticipantName(name) ||
     !isValidEmail(email) ||
     (tag === "sensorimotor-study"
       ? !isAllowedSensorimotorFirstSessionDate(booking.firstSessionDate)
@@ -289,8 +293,8 @@ export async function PUT(request: NextRequest) {
       {
         message:
           tag === "sensorimotor-study"
-            ? `Enter a valid email, choose Session 1 on a Monday or Tuesday through ${formatDisplayDate(getLatestBookingDate(8))}, and keep the remaining sessions on weekdays in that same week.`
-            : `Enter a valid email and a Thursday first-session date through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
+            ? `Enter a name, a valid email, choose Session 1 on a Monday or Tuesday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and keep the remaining sessions on weekdays in that same week.`
+            : `Enter a name, a valid email, and a Thursday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}.`,
       },
       { status: 400 },
     );
@@ -391,6 +395,7 @@ export async function PUT(request: NextRequest) {
   const updatedBooking: BookingEntry = {
     ...bookings[bookingIndex],
     tag,
+    name,
     email,
     firstSessionDate: booking.firstSessionDate,
     selections: booking.selections,

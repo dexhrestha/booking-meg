@@ -18,9 +18,11 @@ export type BookingState = Record<SessionId, SessionSelection>;
 export type BookingEntry = {
   id: string;
   tag?: StudyTag;
+  name?: string;
   email: string;
   firstSessionDate: string;
   selections: BookingState;
+  criteriaAcceptedAt?: string;
   createdAt: string;
   updatedAt?: string;
 };
@@ -74,6 +76,13 @@ export const sessionConfigs: SessionConfig[] = [
   },
 ];
 
+const standardSlotOptions = [
+  "09:00 - 11:00",
+  "11:00 - 13:00",
+  "13:00 - 15:00",
+  "15:00 - 17:00",
+];
+
 export const studyConfigs: Record<StudyTag, StudyConfig> = {
   "meg-study": {
     tag: "meg-study",
@@ -81,12 +90,7 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
     confirmationSubject: "MEG experiment",
     flyerAlt: "MEG long-term memory study recruitment flyer",
     dateSelectionMode: "first-session",
-    slotOptions: [
-      "09:00 - 11:00",
-      "11:00 - 13:00",
-      "14:00 - 16:00",
-      "16:00 - 18:00",
-    ],
+    slotOptions: standardSlotOptions,
   },
   "sensorimotor-study": {
     tag: "sensorimotor-study",
@@ -94,22 +98,12 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
     confirmationSubject: "sensorimotor study",
     flyerAlt: "Sensorimotor study recruitment flyer",
     dateSelectionMode: "per-session",
-    slotOptions: [
-      "08:00 - 09:00",
-      "09:00 - 10:00",
-      "10:00 - 11:00",
-      "11:00 - 12:00",
-      "12:00 - 13:00",
-      "14:00 - 15:00",
-      "15:00 - 16:00",
-      "16:00 - 17:00",
-      "17:00 - 18:00",
-      "18:00 - 19:00",
-    ],
+    slotOptions: standardSlotOptions,
   },
 };
 
 export const defaultStudyTag: StudyTag = "meg-study";
+export const bookingWindowLeadDays = 7;
 export const bookingWindowEndDate = "2026-10-31";
 
 export const slotOptions = studyConfigs[defaultStudyTag].slotOptions;
@@ -178,6 +172,17 @@ function startOfToday() {
   return today;
 }
 
+function startOfBookingWindow() {
+  const earliestDate = startOfToday();
+  earliestDate.setDate(earliestDate.getDate() + bookingWindowLeadDays);
+
+  return earliestDate;
+}
+
+export function getEarliestBookingDate() {
+  return formatIsoDate(startOfBookingWindow());
+}
+
 export function getLatestFirstSessionDate() {
   return bookingWindowEndDate;
 }
@@ -202,9 +207,9 @@ export function isWithinBookingWindowUntil(date: string, endDate: string) {
     return false;
   }
 
-  const today = startOfToday();
+  const earliestDate = startOfBookingWindow();
 
-  return parsedDate >= today && parsedDate <= latestDate;
+  return parsedDate >= earliestDate && parsedDate <= latestDate;
 }
 
 export function isAllowedFirstSessionDate(date: string) {
@@ -326,6 +331,10 @@ export function slotKey(date: string, slot: string) {
 
 export function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+}
+
+export function isValidParticipantName(name: string) {
+  return name.trim().length >= 2;
 }
 
 export function isValidIsoDate(date: string) {

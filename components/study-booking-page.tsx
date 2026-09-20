@@ -10,6 +10,7 @@ import {
   emptyOccupiedSlots,
   formatDisplayDate,
   getDayForDate,
+  getEarliestBookingDate,
   getLatestBookingDate,
   getLatestFirstSessionDate,
   initialSelections,
@@ -19,6 +20,7 @@ import {
   isWithinSameWeek,
   isWeekdayDate,
   isValidEmail,
+  isValidParticipantName,
   OccupiedSlotReasons,
   OccupiedSlots,
   SessionId,
@@ -53,8 +55,16 @@ function dateToIso(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function getSessionActivityLabel(sessionId: SessionId) {
+  return sessionId === "session4"
+    ? "Magnetoencephalography (MEG)"
+    : "Behavioral and eye tracking";
+}
+
 export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [criteriaAccepted, setCriteriaAccepted] = useState(false);
   const [firstSessionDate, setFirstSessionDate] = useState("");
   const [selections, setSelections] = useState<BookingState>(initialSelections);
   const [booking, setBooking] = useState<BookingEntry | null>(null);
@@ -91,6 +101,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     [occupiedSlots, selections],
   );
 
+  const nameLooksValid = isValidParticipantName(name);
   const emailLooksValid = isValidEmail(email);
   const startDateSelected = usesPerSessionDates
     ? isAllowedSensorimotorFirstSessionDate(selections.session1.date)
@@ -118,23 +129,30 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     [selections, usesPerSessionDates],
   );
   const latestBookingDate = formatDisplayDate(getLatestFirstSessionDate());
+  const earliestBookingDate = formatDisplayDate(getEarliestBookingDate());
   const latestSensorimotorBookingDate = formatDisplayDate(
     getLatestBookingDate(8),
   );
   const validationMessages: string[] = [
     !usesPerSessionDates && !startDateSelected
-      ? `Choose a Thursday for the first session through ${latestBookingDate}.`
+      ? `Choose a Thursday for the first session between ${earliestBookingDate} and ${latestBookingDate}.`
       : "",
     usesPerSessionDates && missingDates.length > 0
-      ? `Choose Session 1 on a Monday or Tuesday through ${latestSensorimotorBookingDate}, then keep Sessions 2-4 on weekdays in that same week, on or after the previous session date.`
+      ? `Choose Session 1 on a Monday or Tuesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}, then keep Sessions 2-4 on weekdays in that same week, on or after the previous session date.`
       : "",
+    !nameLooksValid ? "Enter your name." : "",
     !emailLooksValid ? "Enter a valid email address." : "",
+    !criteriaAccepted
+      ? "Read and accept the eligibility criteria before booking."
+      : "",
     missingSlots.length > 0
       ? `Select a slot for ${missingSlots.map((session) => session.title).join(", ")}.`
       : "",
   ].filter(Boolean);
   const formIsComplete =
+    nameLooksValid &&
     emailLooksValid &&
+    criteriaAccepted &&
     startDateSelected &&
     missingDates.length === 0 &&
     missingSlots.length === 0 &&
@@ -259,7 +277,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       setOccupiedSlots(emptyOccupiedSlots());
       setOccupiedSlotReasons(emptyOccupiedSlotReasons());
       setMessage(
-        `Choose a Thursday first-session date through ${latestBookingDate}.`,
+        `Choose a Thursday first-session date between ${earliestBookingDate} and ${latestBookingDate}.`,
       );
       return;
     }
@@ -277,6 +295,11 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       setEditingBookingId("");
       setMessage("");
     }
+  }
+
+  function handleNameChange(value: string) {
+    setName(value);
+    setBooking(null);
   }
 
   function isSessionDateUnavailable(date: Date, sessionIndex: number) {
@@ -311,7 +334,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       !isAllowedSensorimotorFirstSessionDate(value)
     ) {
       setMessage(
-        `Choose Session 1 on a Monday or Tuesday through ${latestSensorimotorBookingDate}.`,
+        `Choose Session 1 on a Monday or Tuesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`,
       );
       return;
     }
@@ -378,13 +401,17 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       "Existing booking loaded. Change any slot below, then update the booking.",
     );
     setEditingBookingId(existingBooking.id);
+    setName(existingBooking.name ?? "");
     setEmail(existingBooking.email);
+    setCriteriaAccepted(false);
     setFirstSessionDate(existingBooking.firstSessionDate);
     setSelections(existingBooking.selections);
   }
 
   function cancelEdit() {
     setEmail("");
+    setName("");
+    setCriteriaAccepted(false);
     setFirstSessionDate("");
     setEditingBookingId("");
     setExistingBooking(null);
@@ -433,7 +460,9 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
         body: JSON.stringify({
           id: editingBookingId || undefined,
           tag: study.tag,
+          name: name.trim(),
           email: email.trim().toLowerCase(),
+          criteriaAccepted,
           firstSessionDate: usesPerSessionDates
             ? selections.session1.date
             : firstSessionDate,
@@ -521,22 +550,39 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                 }
               />
               <small>
-                Session 1 must start on a Thursday through {latestBookingDate}.
+                Session 1 must start on a Thursday between{" "}
+                {earliestBookingDate} and {latestBookingDate}.
               </small>
             </label>
           ) : null}
-          <label className="email-field">
-            <span>Email address</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => handleEmailChange(event.target.value)}
-              onBlur={() => setTouched(true)}
-              placeholder="participant@example.com"
-              aria-invalid={touched && !emailLooksValid}
-              required
-            />
-          </label>
+          <div className="participant-fields">
+            <label className="participant-field">
+              <span>Name</span>
+              <input
+                type="text"
+                value={name}
+                onChange={(event) => handleNameChange(event.target.value)}
+                onBlur={() => setTouched(true)}
+                placeholder="Your name"
+                aria-invalid={touched && !nameLooksValid}
+                autoComplete="name"
+                required
+              />
+            </label>
+            <label className="participant-field">
+              <span>Email address</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => handleEmailChange(event.target.value)}
+                onBlur={() => setTouched(true)}
+                placeholder="participant@example.com"
+                aria-invalid={touched && !emailLooksValid}
+                autoComplete="email"
+                required
+              />
+            </label>
+          </div>
         </div>
 
         {existingBooking ? (
@@ -592,7 +638,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                 <p>
                   {usesPerSessionDates
                     ? "Choose date, then time"
-                    : "Scheduled session day"}
+                    : getSessionActivityLabel(session.id)}
                 </p>
 
                 {usesPerSessionDates ? (
@@ -626,7 +672,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                       }
                       note={
                         session.id === "session1"
-                          ? `Select a Monday or Tuesday through ${latestSensorimotorBookingDate}.`
+                          ? `Select a Monday or Tuesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
                           : "Select a weekday in the same week, on or after the previous session date."
                       }
                       placeholder={
@@ -710,6 +756,44 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
           })}
         </div>
 
+        <section className="criteria-panel" aria-labelledby="criteria-title">
+          <div>
+            <p className="eyebrow">Eligibility criteria</p>
+            <h3 id="criteria-title">Please read before booking</h3>
+          </div>
+          <ul>
+            <li>You are 18-35 years old.</li>
+            <li>You are right-handed.</li>
+            <li>You have normal or corrected-to-normal vision.</li>
+            <li>
+              You have no metal implants, non-removable piercings, or other
+              non-removable metal.
+            </li>
+            <li>
+              You have no metal dental retainers or splints, no braids or
+              extensions, and no non-removable head coverings that could
+              interfere with the MEG setup.
+            </li>
+            <li>
+              You have no current neurological, psychological, or psychiatric
+              diagnosis.
+            </li>
+          </ul>
+          <label className="criteria-acceptance">
+            <input
+              type="checkbox"
+              checked={criteriaAccepted}
+              onChange={(event) => {
+                setCriteriaAccepted(event.target.checked);
+                setTouched(true);
+                setBooking(null);
+              }}
+              required
+            />
+            <span>I have read and meet all of the eligibility criteria.</span>
+          </label>
+        </section>
+
         {touched && validationMessages.length > 0 ? (
           <div className="form-message" role="alert">
             {validationMessages.map((validationMessage) => (
@@ -751,6 +835,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       {booking ? (
         <section className="confirmation" aria-live="polite">
           <h2>Booking confirmed</h2>
+          {booking.name ? <p>{booking.name}</p> : null}
           <p>{booking.email}</p>
           <dl>
             {sessionConfigs.map((session) => (

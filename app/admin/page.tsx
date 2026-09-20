@@ -17,6 +17,7 @@ import {
   formatDisplayDate,
   getBookingTag,
   getBlockedSlotTag,
+  getEarliestBookingDate,
   getLatestFirstSessionDate,
   getSlotOptions,
   getStudyConfig,
@@ -339,7 +340,7 @@ function buildConfirmationEmail(booking: BookingEntry) {
   return {
     subject: "Confirmation of MEG Study Booking and Eligibility",
     body: [
-      "Dear participant,",
+      booking.name ? `Dear ${booking.name},` : "Dear participant,",
       "",
       "I am writing to confirm your booking for the following dates and times:",
       "",
@@ -502,8 +503,10 @@ export default function ViewBookingsPage() {
             id: `${booking.id}-${session.id}`,
             date: selection.date,
             slot: selection.slot,
-            title: booking.email,
-            subtitle: `${study.title} - ${session.title}`,
+            title: booking.name || booking.email,
+            subtitle: booking.name
+              ? `${booking.email} - ${study.title} - ${session.title}`
+              : `${study.title} - ${session.title}`,
             note: `${selection.day}, ${formatDisplayDate(selection.date)}`,
             timeLabel: selection.slot,
             variant: "booking",
@@ -983,9 +986,23 @@ export default function ViewBookingsPage() {
                     <span>
                       {getStudyConfig(getBookingTag(editingBooking)).title}
                     </span>
-                    <h3>{editingBooking.email}</h3>
+                    <h3>{editingBooking.name || editingBooking.email}</h3>
                   </div>
                   <div className="booking-edit-grid">
+                    <label>
+                      <span>Name</span>
+                      <input
+                        className="admin-table-input"
+                        type="text"
+                        value={editingBooking.name ?? ""}
+                        onChange={(event) =>
+                          updateEditingBooking({
+                            ...editingBooking,
+                            name: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
                     <label>
                       <span>Email</span>
                       <input
@@ -1012,7 +1029,7 @@ export default function ViewBookingsPage() {
                               editingBooking.firstSessionDate,
                             )
                           }
-                          note={`Select a Thursday through ${formatDisplayDate(getLatestFirstSessionDate())}.`}
+                          note={`Select a Thursday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}.`}
                         />
                       ) : (
                         <input
