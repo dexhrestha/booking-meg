@@ -8,15 +8,18 @@ import {
   formatDisplayDate,
   getBlockedSlotTag,
   getBookingTag,
+  getConsecutiveSlots,
   getDayForDate,
   getEarliestBookingDate,
   getLatestBookingDate,
   getLatestFirstSessionDate,
+  getSessionConfigs,
   getSessionDate,
   getSessionDay,
   getSlotOptions,
   getStudyConfig,
   getStudyTag,
+  isAllowedEyeTrackingDate,
   isAllowedSensorimotorFirstSessionDate,
   isAllowedFirstSessionDate,
   isSameOrAfterDate,
@@ -26,7 +29,6 @@ import {
   isValidParticipantName,
   OccupiedSlotReasons,
   SessionId,
-  sessionConfigs,
   SlotBlockReason,
   slotKey,
   StudyTag,
@@ -46,17 +48,47 @@ type OccupiedSlotData = {
 };
 
 function isCompleteBooking(booking: BookingEntry, tag?: StudyTag) {
+  const bookingTag = getBookingTag(booking);
+
   return Boolean(
-    (!tag || getBookingTag(booking) === tag) &&
+    (!tag || bookingTag === tag) &&
       booking.id &&
       booking.email &&
     booking.firstSessionDate &&
     booking.selections &&
-    sessionConfigs.every((session) => {
+    getSessionConfigs(bookingTag).every((session) => {
       const selection = booking.selections[session.id];
       return selection?.day && selection?.date && selection?.slot;
     })
   );
+}
+
+function isFlexibleDateStudy(tag: StudyTag) {
+  return tag === "sensorimotor-study" || tag === "eye-track-monpath";
+}
+
+function isAllowedStartDate(firstSessionDate: string, tag: StudyTag) {
+  if (tag === "sensorimotor-study") {
+    return isAllowedSensorimotorFirstSessionDate(firstSessionDate);
+  }
+
+  if (tag === "eye-track-monpath") {
+    return isAllowedEyeTrackingDate(firstSessionDate);
+  }
+
+  return isAllowedFirstSessionDate(firstSessionDate);
+}
+
+function getInvalidBookingMessage(tag: StudyTag) {
+  if (tag === "sensorimotor-study") {
+    return `Enter your name and a valid email, accept the eligibility criteria, choose Session 1 on a Monday or Tuesday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`;
+  }
+
+  if (tag === "eye-track-monpath") {
+    return `Enter your name and a valid email, accept the eligibility criteria, choose a Monday, Tuesday, or Wednesday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose three consecutive session slots.`;
+  }
+
+  return `Enter your name and a valid email, accept the eligibility criteria, choose a Thursday date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`;
 }
 
 function getBookingForEmail(
@@ -127,14 +159,14 @@ function getOccupiedSlots(
       continue;
     }
 
-    for (const session of sessionConfigs) {
+    for (const session of getSessionConfigs(tag)) {
       const requestedDate = sessionDates[session.id];
 
       if (!requestedDate) {
         continue;
       }
 
-      for (const existingSession of sessionConfigs) {
+      for (const existingSession of getSessionConfigs(tag)) {
         const selection = booking.selections[existingSession.id];
 
         if (selection?.date === requestedDate && selection.slot) {
@@ -153,7 +185,7 @@ function getOccupiedSlots(
       continue;
     }
 
-    for (const session of sessionConfigs) {
+    for (const session of getSessionConfigs(tag)) {
       const requestedDate = sessionDates[session.id];
 
       if (requestedDate === blockedSlot.date) {
@@ -166,7 +198,7 @@ function getOccupiedSlots(
     }
   }
 
-  for (const session of sessionConfigs) {
+  for (const session of getSessionConfigs(tag)) {
     const requestedDate = sessionDates[session.id];
 
     if (!requestedDate) {
@@ -184,15 +216,18 @@ function getOccupiedSlots(
   } satisfies OccupiedSlotData;
 }
 
-function getSessionDatesForFirstSessionDate(firstSessionDate: string) {
-  return sessionConfigs.reduce((acc, session) => {
+function getSessionDatesForFirstSessionDate(
+  firstSessionDate: string,
+  tag: StudyTag,
+) {
+  return getSessionConfigs(tag).reduce((acc, session) => {
     acc[session.id] = getSessionDate(firstSessionDate, session.dayOffset);
     return acc;
   }, {} as SessionDateLookup);
 }
 
-function getSessionDatesFromSearchParams(request: NextRequest) {
-  return sessionConfigs.reduce((acc, session) => {
+function getSessionDatesFromSearchParams(request: NextRequest, tag: StudyTag) {
+  return getSessionConfigs(tag).reduce((acc, session) => {
     const date = request.nextUrl.searchParams.get(`${session.id}Date`);
 
     if (date) {
@@ -203,8 +238,8 @@ function getSessionDatesFromSearchParams(request: NextRequest) {
   }, {} as SessionDateLookup);
 }
 
-function getSessionDatesForSelections(selections: BookingState) {
-  return sessionConfigs.reduce((acc, session) => {
+function getSessionDatesForSelections(selections: BookingState, tag: StudyTag) {
+  return getSessionConfigs(tag).reduce((acc, session) => {
     const date = selections[session.id]?.date;
 
     if (date) {
@@ -221,14 +256,20 @@ function validateSelections(
   tag: StudyTag,
 ) {
   const slotOptions = getSlotOptions(tag);
+  const studySessions = getSessionConfigs(tag);
 
-  for (const session of sessionConfigs) {
+  for (const session of studySessions) {
     const selection = selections?.[session.id];
     const validSlot = slotOptions.includes(selection?.slot);
     let validDay = false;
     let validDate = false;
 
-    if (tag === "sensorimotor-study") {
+    if (tag === "eye-track-monpath") {
+      validDay = selection?.day === getDayForDate(selection?.date ?? "");
+      validDate =
+        selection?.date === firstSessionDate &&
+        isAllowedEyeTrackingDate(firstSessionDate);
+    } else if (tag === "sensorimotor-study") {
       validDay = selection?.day === getDayForDate(selection?.date ?? "");
       validDate =
         session.id === "session1"
@@ -237,7 +278,7 @@ function validateSelections(
             isWeekdayDate(selection?.date ?? "") &&
             isSameOrAfterDate(
               selection?.date ?? "",
-              selections[sessionConfigs[sessionConfigs.indexOf(session) - 1].id]
+              selections[studySessions[studySessions.indexOf(session) - 1].id]
                 .date,
             );
     } else {
@@ -252,8 +293,8 @@ function validateSelections(
     }
   }
 
-  const duplicateSelection = sessionConfigs.find((session, index) =>
-    sessionConfigs.slice(0, index).some((previousSession) => {
+  const duplicateSelection = studySessions.find((session, index) =>
+    studySessions.slice(0, index).some((previousSession) => {
       const current = selections[session.id];
       const previous = selections[previousSession.id];
 
@@ -266,10 +307,28 @@ function validateSelections(
   }
 
   if (
-    tag === "sensorimotor-study" &&
+    isFlexibleDateStudy(tag) &&
     selections.session1.date !== firstSessionDate
   ) {
     return "Session 1 date must match the booking start date.";
+  }
+
+  if (tag === "eye-track-monpath") {
+    const selectedSlots = studySessions.map(
+      (session) => selections[session.id].slot,
+    );
+    const consecutiveSlots = getConsecutiveSlots(
+      slotOptions,
+      selectedSlots[0],
+      studySessions.length,
+    );
+    const hasConsecutiveSlots = selectedSlots.every(
+      (slot, index) => slot === consecutiveSlots[index],
+    );
+
+    if (!hasConsecutiveSlots) {
+      return "Eye tracking sessions must use three consecutive two-hour slots.";
+    }
   }
 
   return "";
@@ -297,15 +356,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const validFirstSessionDate =
-      tag === "sensorimotor-study"
-        ? Boolean(
-            firstSessionDate &&
-              isAllowedSensorimotorFirstSessionDate(firstSessionDate),
-          )
-        : Boolean(firstSessionDate && isAllowedFirstSessionDate(firstSessionDate));
+    const validFirstSessionDate = Boolean(
+      firstSessionDate && isAllowedStartDate(firstSessionDate, tag),
+    );
 
-    if (!validFirstSessionDate && tag !== "sensorimotor-study") {
+    if (!validFirstSessionDate && !isFlexibleDateStudy(tag)) {
       return NextResponse.json({
         occupiedSlotReasons: emptyOccupiedSlotReasons(),
         occupiedSlots: emptyOccupiedSlots(),
@@ -315,9 +370,9 @@ export async function GET(request: NextRequest) {
     }
 
     const sessionDates =
-      tag === "sensorimotor-study"
-        ? getSessionDatesFromSearchParams(request)
-        : getSessionDatesForFirstSessionDate(firstSessionDate ?? "");
+      isFlexibleDateStudy(tag)
+        ? getSessionDatesFromSearchParams(request, tag)
+        : getSessionDatesForFirstSessionDate(firstSessionDate ?? "", tag);
 
     return NextResponse.json({
       ...getOccupiedSlots(
@@ -363,17 +418,12 @@ export async function POST(request: NextRequest) {
       !isValidParticipantName(name) ||
       !isValidEmail(email) ||
       payload.criteriaAccepted !== true ||
-      (tag === "sensorimotor-study"
-        ? !isAllowedSensorimotorFirstSessionDate(firstSessionDate)
-        : !isAllowedFirstSessionDate(firstSessionDate)) ||
+      !isAllowedStartDate(firstSessionDate, tag) ||
       !selections
     ) {
       return NextResponse.json(
         {
-          message:
-            tag === "sensorimotor-study"
-              ? `Enter your name and a valid email, accept the eligibility criteria, choose Session 1 on a Monday or Tuesday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`
-              : `Enter your name and a valid email, accept the eligibility criteria, choose a Thursday date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
+          message: getInvalidBookingMessage(tag),
         },
         { status: 400 },
       );
@@ -399,21 +449,21 @@ export async function POST(request: NextRequest) {
             bookings,
             blockedSlots,
             tag,
-            getSessionDatesForSelections(selections),
+            getSessionDatesForSelections(selections, tag),
           ),
         },
         { status: 409 },
       );
     }
 
-    const selectedSessionDates = getSessionDatesForSelections(selections);
+    const selectedSessionDates = getSessionDatesForSelections(selections, tag);
     const occupiedSlotData = getOccupiedSlots(
       bookings,
       blockedSlots,
       tag,
       selectedSessionDates,
     );
-    const conflict = sessionConfigs.find((session) =>
+    const conflict = getSessionConfigs(tag).find((session) =>
       occupiedSlotData.occupiedSlots[session.id].includes(
         slotKey(selections[session.id].date, selections[session.id].slot),
       ),
@@ -492,17 +542,12 @@ export async function PUT(request: NextRequest) {
     !isValidParticipantName(name) ||
     !isValidEmail(email) ||
     payload.criteriaAccepted !== true ||
-    (tag === "sensorimotor-study"
-      ? !isAllowedSensorimotorFirstSessionDate(firstSessionDate)
-      : !isAllowedFirstSessionDate(firstSessionDate)) ||
+    !isAllowedStartDate(firstSessionDate, tag) ||
     !selections
   ) {
     return NextResponse.json(
       {
-        message:
-          tag === "sensorimotor-study"
-            ? `Enter your name and a valid email, accept the eligibility criteria, choose Session 1 on a Monday or Tuesday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`
-            : `Enter your name and a valid email, accept the eligibility criteria, choose a Thursday date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`,
+        message: getInvalidBookingMessage(tag),
       },
       { status: 400 },
     );
@@ -530,7 +575,7 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  const selectedSessionDates = getSessionDatesForSelections(selections);
+  const selectedSessionDates = getSessionDatesForSelections(selections, tag);
   const occupiedSlotData = getOccupiedSlots(
     bookings,
     blockedSlots,
@@ -538,7 +583,7 @@ export async function PUT(request: NextRequest) {
     selectedSessionDates,
     id,
   );
-  const conflict = sessionConfigs.find((session) =>
+  const conflict = getSessionConfigs(tag).find((session) =>
     occupiedSlotData.occupiedSlots[session.id].includes(
       slotKey(selections[session.id].date, selections[session.id].slot),
     ),

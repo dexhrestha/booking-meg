@@ -19,10 +19,10 @@ import {
   getBlockedSlotTag,
   getEarliestBookingDate,
   getLatestFirstSessionDate,
+  getSessionConfigs,
   getSlotOptions,
   getStudyConfig,
   isAllowedFirstSessionDate,
-  sessionConfigs,
   studyConfigs,
 } from "@/lib/booking";
 
@@ -330,7 +330,8 @@ function formatEmailSlot(slot: string) {
 }
 
 function buildConfirmationEmail(booking: BookingEntry) {
-  const sessionLines = sessionConfigs.map((session) => {
+  const study = getStudyConfig(getBookingTag(booking));
+  const sessionLines = getSessionConfigs(study.tag).map((session) => {
     const selection = booking.selections[session.id];
 
     return `- ${session.title}: ${formatEmailDate(
@@ -339,7 +340,7 @@ function buildConfirmationEmail(booking: BookingEntry) {
   });
 
   return {
-    subject: "Confirmation of MEG Study Booking and Eligibility",
+    subject: `Confirmation of ${study.title} Booking and Eligibility`,
     body: [
       booking.name ? `Dear ${booking.name},` : "Dear participant,",
       "",
@@ -351,13 +352,7 @@ function buildConfirmationEmail(booking: BookingEntry) {
       "",
       "Before we finalize your participation, could you also confirm that you meet all of the following eligibility criteria:",
       "",
-      "you are 18–35 years old, right-handed, and have normal or corrected-to-normal vision;",
-      "",
-      "you have no metal implants, non-removable piercings, or other non-removable metal;",
-      "",
-      "no metal dental retainers or splints; no braids, extensions, or non-removable head coverings that could interfere with the MEG setup;",
-      "",
-      "and no current neurological, psychological, or psychiatric diagnosis.",
+      ...study.eligibilityCriteria.map((criterion) => `- ${criterion}`),
       "",
       "Thank you, and I look forward to your confirmation.",
       "",
@@ -498,7 +493,7 @@ export default function ViewBookingsPage() {
         const tag = getBookingTag(booking);
         const study = getStudyConfig(tag);
 
-        return sessionConfigs.map((session) => {
+        return getSessionConfigs(tag).map((session) => {
           const selection = booking.selections[session.id];
 
           return {
@@ -630,6 +625,7 @@ export default function ViewBookingsPage() {
       selections: buildSelectionsForStartDate(
         firstSessionDate,
         editingBooking.selections,
+        getBookingTag(editingBooking),
       ),
     });
   }
@@ -923,6 +919,9 @@ export default function ViewBookingsPage() {
                     <option value="sensorimotor-study">
                       Sensorimotor study
                     </option>
+                    <option value="eye-track-monpath">
+                      eye tracking experiment
+                    </option>
                   </select>
                 </label>
                 <label>
@@ -958,6 +957,9 @@ export default function ViewBookingsPage() {
                     <option value="meg-study">MEG experiment</option>
                     <option value="sensorimotor-study">
                       Sensorimotor study
+                    </option>
+                    <option value="eye-track-monpath">
+                      eye tracking experiment
                     </option>
                   </select>
                 </label>
@@ -1059,9 +1061,10 @@ export default function ViewBookingsPage() {
                         />
                       )}
                     </label>
-                    {sessionConfigs.map((session) => {
-                      const rowTag = getBookingTag(editingBooking);
-                      const rowSlotOptions = getSlotOptions(rowTag);
+                    {getSessionConfigs(getBookingTag(editingBooking)).map((session) => {
+                      const rowSlotOptions = getSlotOptions(
+                        getBookingTag(editingBooking),
+                      );
 
                       return (
                         <label key={session.id}>

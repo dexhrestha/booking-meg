@@ -9,11 +9,14 @@ import {
   emptyOccupiedSlotReasons,
   emptyOccupiedSlots,
   formatDisplayDate,
+  getConsecutiveSlots,
   getDayForDate,
   getEarliestBookingDate,
   getLatestBookingDate,
   getLatestFirstSessionDate,
+  getSessionConfigs,
   initialSelections,
+  isAllowedEyeTrackingDate,
   isAllowedSensorimotorFirstSessionDate,
   isAllowedFirstSessionDate,
   isSameOrAfterDate,
@@ -25,7 +28,6 @@ import {
   OccupiedSlots,
   SessionId,
   SessionSelection,
-  sessionConfigs,
   SlotBlockReason,
   slotKey,
   StudyConfig,
@@ -33,7 +35,7 @@ import {
 import { FirstSessionDatePicker } from "@/components/first-session-date-picker";
 
 type StudyBookingPageProps = {
-  flyer: StaticImageData;
+  flyer?: StaticImageData | string | null;
   study: StudyConfig;
 };
 
@@ -80,53 +82,68 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
   const usesPerSessionDates = study.dateSelectionMode === "per-session";
-  const selectedDateKey = sessionConfigs
+  const usesSameDayConsecutiveDates =
+    study.dateSelectionMode === "same-day-consecutive";
+  const usesSessionDateSelection =
+    usesPerSessionDates || usesSameDayConsecutiveDates;
+  const studySessions = useMemo(() => getSessionConfigs(study.tag), [study.tag]);
+  const selectedDateKey = studySessions
     .map((session) => selections[session.id].date)
     .join("|");
 
   const missingSlots = useMemo(
     () =>
-      sessionConfigs.filter((session) => selections[session.id].slot === ""),
-    [selections],
+      studySessions.filter((session) => selections[session.id].slot === ""),
+    [selections, studySessions],
   );
   const unavailableSelections = useMemo(
     () =>
-      sessionConfigs.filter(
+      studySessions.filter(
         (session) =>
           selections[session.id].slot &&
           occupiedSlots[session.id].includes(
             slotKey(selections[session.id].date, selections[session.id].slot),
           ),
       ),
-    [occupiedSlots, selections],
+    [occupiedSlots, selections, studySessions],
   );
 
   const nameLooksValid = isValidParticipantName(name);
   const emailLooksValid = isValidEmail(email);
-  const startDateSelected = usesPerSessionDates
-    ? isAllowedSensorimotorFirstSessionDate(selections.session1.date)
+  const startDateSelected = usesSessionDateSelection
+    ? usesSameDayConsecutiveDates
+      ? isAllowedEyeTrackingDate(selections.session1.date)
+      : isAllowedSensorimotorFirstSessionDate(selections.session1.date)
     : isAllowedFirstSessionDate(firstSessionDate);
   const missingDates = useMemo(
     () =>
-      usesPerSessionDates
-        ? sessionConfigs.filter(
+      usesSessionDateSelection
+        ? studySessions.filter(
             (session, index) =>
-              session.id === "session1"
-                ? !isAllowedSensorimotorFirstSessionDate(
+              usesSameDayConsecutiveDates
+                ? selections[session.id].date !== selections.session1.date ||
+                  !isAllowedEyeTrackingDate(selections.session1.date)
+                : session.id === "session1"
+                  ? !isAllowedSensorimotorFirstSessionDate(
                     selections[session.id].date,
                   )
-                : !isWithinSameWeek(
+                  : !isWithinSameWeek(
                     selections[session.id].date,
                     selections.session1.date,
                   ) ||
                   !isWeekdayDate(selections[session.id].date) ||
                   !isSameOrAfterDate(
                     selections[session.id].date,
-                    selections[sessionConfigs[index - 1].id].date,
+                    selections[studySessions[index - 1].id].date,
                   ),
           )
         : [],
-    [selections, usesPerSessionDates],
+    [
+      selections,
+      studySessions,
+      usesSameDayConsecutiveDates,
+      usesSessionDateSelection,
+    ],
   );
   const latestBookingDate = formatDisplayDate(getLatestFirstSessionDate());
   const earliestBookingDate = formatDisplayDate(getEarliestBookingDate());
@@ -135,10 +152,15 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   );
   const validationMessages: string[] = [
     !usesPerSessionDates && !startDateSelected
-      ? `Choose a Thursday for the first session between ${earliestBookingDate} and ${latestBookingDate}.`
+      ? usesSameDayConsecutiveDates
+        ? `Choose a Monday, Tuesday, or Wednesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
+        : `Choose a Thursday for the first session between ${earliestBookingDate} and ${latestBookingDate}.`
       : "",
     usesPerSessionDates && missingDates.length > 0
       ? `Choose Session 1 on a Monday or Tuesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}, then keep Sessions 2-4 on weekdays in that same week, on or after the previous session date.`
+      : "",
+    usesSameDayConsecutiveDates && missingDates.length > 0
+      ? `Choose a Monday, Tuesday, or Wednesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}. All sessions will use that date.`
       : "",
     !nameLooksValid ? "Enter your name." : "",
     !emailLooksValid ? "Enter a valid email address." : "",
@@ -169,8 +191,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
       const params = new URLSearchParams({ tag: study.tag });
 
-      if (usesPerSessionDates) {
-        sessionConfigs.forEach((session) => {
+      if (usesSessionDateSelection) {
+        studySessions.forEach((session) => {
           const date = selections[session.id].date;
 
           if (date) {
@@ -229,8 +251,9 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     firstSessionDate,
     selectedDateKey,
     startDateSelected,
+    studySessions,
     study.tag,
-    usesPerSessionDates,
+    usesSessionDateSelection,
   ]);
 
   function updateSelection(
@@ -254,8 +277,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   ) {
     const next = { ...current };
 
-    for (let index = startIndex; index < sessionConfigs.length; index += 1) {
-      const session = sessionConfigs[index];
+    for (let index = startIndex; index < studySessions.length; index += 1) {
+      const session = studySessions[index];
       const existing = next[session.id];
 
       next[session.id] = {
@@ -284,7 +307,9 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
     setMessage("");
     setFirstSessionDate(value);
-    setSelections((current) => buildSelectionsForStartDate(value, current));
+    setSelections((current) =>
+      buildSelectionsForStartDate(value, current, study.tag),
+    );
   }
 
   function handleEmailChange(value: string) {
@@ -304,10 +329,16 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
   function isSessionDateUnavailable(date: Date, sessionIndex: number) {
     const isoDate = dateToIso(date);
-    const previousSession = sessionConfigs[sessionIndex - 1];
+    const previousSession = studySessions[sessionIndex - 1];
 
     if (sessionIndex === 0) {
-      return !isAllowedSensorimotorFirstSessionDate(isoDate);
+      return usesSameDayConsecutiveDates
+        ? !isAllowedEyeTrackingDate(isoDate)
+        : !isAllowedSensorimotorFirstSessionDate(isoDate);
+    }
+
+    if (usesSameDayConsecutiveDates) {
+      return true;
     }
 
     if (!previousSession || !selections.session1.date) {
@@ -322,7 +353,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   }
 
   function handleSessionDateChange(sessionId: SessionId, value: string) {
-    const sessionIndex = sessionConfigs.findIndex(
+    const sessionIndex = studySessions.findIndex(
       (session) => session.id === sessionId,
     );
 
@@ -331,21 +362,24 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
     if (
       sessionId === "session1" &&
-      !isAllowedSensorimotorFirstSessionDate(value)
+      !(usesSameDayConsecutiveDates
+        ? isAllowedEyeTrackingDate(value)
+        : isAllowedSensorimotorFirstSessionDate(value))
     ) {
       setMessage(
-        `Choose Session 1 on a Monday or Tuesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`,
+        `Choose Session 1 on a Monday, Tuesday, or Wednesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`,
       );
       return;
     }
 
     if (
       sessionId !== "session1" &&
+      !usesSameDayConsecutiveDates &&
       (!isWithinSameWeek(value, selections.session1.date) ||
         !isWeekdayDate(value) ||
         !isSameOrAfterDate(
           value,
-          selections[sessionConfigs[sessionIndex - 1].id].date,
+          selections[studySessions[sessionIndex - 1].id].date,
         ))
     ) {
       setMessage(
@@ -357,6 +391,18 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     setMessage("");
     setSelections((current) => {
       const next = clearLaterSessions(current, sessionIndex, true);
+
+      if (usesSameDayConsecutiveDates) {
+        for (const session of studySessions) {
+          next[session.id] = {
+            day: getDayForDate(value),
+            date: value,
+            slot: "",
+          };
+        }
+
+        return next;
+      }
 
       next[sessionId] = {
         day: getDayForDate(value),
@@ -373,17 +419,39 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   }
 
   function handleSlotChange(sessionId: SessionId, value: string) {
-    if (!usesPerSessionDates) {
+    if (!usesSessionDateSelection) {
       updateSelection(sessionId, "slot", value);
       return;
     }
 
-    const sessionIndex = sessionConfigs.findIndex(
+    const sessionIndex = studySessions.findIndex(
       (session) => session.id === sessionId,
     );
 
     setSelections((current) => {
       const next = clearLaterSessions(current, sessionIndex, true);
+
+      if (usesSameDayConsecutiveDates) {
+        const consecutiveSlots = getConsecutiveSlots(
+          study.slotOptions,
+          value,
+          studySessions.length,
+        );
+
+        for (let index = 0; index < studySessions.length; index += 1) {
+          const session = studySessions[index];
+          const slot = consecutiveSlots[index] ?? "";
+
+          next[session.id] = {
+            ...next[session.id],
+            day: next.session1.day,
+            date: next.session1.date,
+            slot,
+          };
+        }
+
+        return next;
+      }
 
       next[sessionId] = {
         ...next[sessionId],
@@ -463,7 +531,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
           name: name.trim(),
           email: email.trim().toLowerCase(),
           criteriaAccepted,
-          firstSessionDate: usesPerSessionDates
+          firstSessionDate: usesSessionDateSelection
             ? selections.session1.date
             : firstSessionDate,
           selections,
@@ -517,19 +585,29 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
   return (
     <main className="page-shell">
-      <section className="experiment-banner" aria-label={`${study.title} flyer`}>
-        <Image
-          src={flyer}
-          alt={study.flyerAlt}
-          className="banner-image"
-          priority
-        />
-      </section>
+      {flyer ? (
+        <section
+          className="experiment-banner"
+          aria-label={`${study.title} flyer`}
+        >
+          {typeof flyer === "string" ? (
+            <img src={flyer} alt={study.flyerAlt} className="banner-image" />
+          ) : (
+            <Image
+              src={flyer}
+              alt={study.flyerAlt}
+              className="banner-image"
+              priority
+            />
+          )}
+        </section>
+      ) : null}
 
       <form className="booking-form" onSubmit={handleSubmit}>
         <div
           className={
             usesPerSessionDates
+            || usesSameDayConsecutiveDates
               ? "form-header form-header-compact"
               : "form-header"
           }
@@ -538,7 +616,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
             <p className="eyebrow">Booking details</p>
             <h2>Choose your session slots</h2>
           </div>
-          {!usesPerSessionDates ? (
+          {!usesSessionDateSelection ? (
             <label className="date-field">
               <span>First session date</span>
               <FirstSessionDatePicker
@@ -618,17 +696,18 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
         </div>
 
         <div className="session-grid">
-          {sessionConfigs.map((session, sessionIndex) => {
-            const previousSession = sessionConfigs[sessionIndex - 1];
+          {studySessions.map((session, sessionIndex) => {
+            const previousSession = studySessions[sessionIndex - 1];
             const sessionUnlocked =
-              !usesPerSessionDates ||
+              !usesSessionDateSelection ||
+              usesSameDayConsecutiveDates ||
               !previousSession ||
               Boolean(
                 selections[previousSession.id].date &&
                   selections[previousSession.id].slot,
               );
             const selectedDate = selections[session.id].date;
-            const slotPickerEnabled = usesPerSessionDates
+            const slotPickerEnabled = usesSessionDateSelection
               ? sessionUnlocked && Boolean(selectedDate)
               : startDateSelected;
 
@@ -636,7 +715,11 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
               <fieldset className="session-column" key={session.id}>
                 <legend>{session.title}</legend>
                 <p>
-                  {usesPerSessionDates
+                  {usesSameDayConsecutiveDates
+                    ? session.id === "session1"
+                      ? "Choose date and first time"
+                      : "Automatically follows previous session"
+                    : usesPerSessionDates
                     ? "Choose date, then time"
                     : getSessionActivityLabel(session.id)}
                 </p>
@@ -662,7 +745,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                             !isWeekdayDate(selectedDate) ||
                             !isSameOrAfterDate(
                               selectedDate,
-                              selections[sessionConfigs[sessionIndex - 1].id]
+                              selections[studySessions[sessionIndex - 1].id]
                                 .date,
                             ))
                       }
@@ -687,6 +770,36 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                         : "Choose the previous session date and time first."}
                     </small>
                   </label>
+                ) : usesSameDayConsecutiveDates && session.id === "session1" ? (
+                  <label className="date-field session-date-field">
+                    <span>Session date</span>
+                    <FirstSessionDatePicker
+                      value={selectedDate}
+                      onChange={(value) =>
+                        handleSessionDateChange(session.id, value)
+                      }
+                      onBlur={() => setTouched(true)}
+                      invalid={
+                        touched &&
+                        selectedDate !== "" &&
+                        !isAllowedEyeTrackingDate(selectedDate)
+                      }
+                      isDateUnavailable={(date) =>
+                        isSessionDateUnavailable(date, sessionIndex)
+                      }
+                      note={`Select a Monday, Tuesday, or Wednesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`}
+                    />
+                    <small>
+                      Later sessions use the next available two-hour slots.
+                    </small>
+                  </label>
+                ) : usesSameDayConsecutiveDates && startDateSelected ? (
+                  <div className="session-date">
+                    <span>Day and date</span>
+                    <strong>
+                      {formatDisplayDate(selections[session.id].date)}
+                    </strong>
+                  </div>
                 ) : startDateSelected ? (
                   <div className="session-date">
                     <span>Day and date</span>
@@ -702,14 +815,23 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                     const key = slotKey(selections[session.id].date, slot);
                     const isBooked = occupiedSlots[session.id].includes(key);
                     const isSelectedEarlier =
-                      usesPerSessionDates &&
-                      sessionConfigs
+                      usesSessionDateSelection &&
+                      studySessions
                         .slice(0, sessionIndex)
                         .some(
                           (previous) =>
                             selections[previous.id].date === selectedDate &&
                             selections[previous.id].slot === slot,
                         );
+                    const hasConsecutiveSlots =
+                      !usesSameDayConsecutiveDates ||
+                      getConsecutiveSlots(
+                        study.slotOptions,
+                        slot,
+                        studySessions.length,
+                      ).length === studySessions.length;
+                    const isAutomaticLaterSlot =
+                      usesSameDayConsecutiveDates && session.id !== "session1";
                     const blockReason = getSlotBlockReason(
                       session.id,
                       key,
@@ -734,7 +856,11 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                             handleSlotChange(session.id, event.target.value)
                           }
                           disabled={
-                            !slotPickerEnabled || isBooked || isSelectedEarlier
+                            !slotPickerEnabled ||
+                            isBooked ||
+                            isSelectedEarlier ||
+                            !hasConsecutiveSlots ||
+                            isAutomaticLaterSlot
                           }
                           required
                         />
@@ -762,22 +888,9 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
             <h3 id="criteria-title">Please read before booking</h3>
           </div>
           <ul>
-            <li>You are 18-35 years old.</li>
-            <li>You are right-handed.</li>
-            <li>You have normal or corrected-to-normal vision.</li>
-            <li>
-              You have no metal implants, non-removable piercings, or other
-              non-removable metal.
-            </li>
-            <li>
-              You have no metal dental retainers or splints, no braids or
-              extensions, and no non-removable head coverings that could
-              interfere with the MEG setup.
-            </li>
-            <li>
-              You have no current neurological, psychological, or psychiatric
-              diagnosis.
-            </li>
+            {study.eligibilityCriteria.map((criterion) => (
+              <li key={criterion}>{criterion}</li>
+            ))}
           </ul>
           <label className="criteria-acceptance">
             <input
@@ -838,7 +951,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
           {booking.name ? <p>{booking.name}</p> : null}
           <p>{booking.email}</p>
           <dl>
-            {sessionConfigs.map((session) => (
+            {studySessions.map((session) => (
               <div key={session.id}>
                 <dt>{session.title}</dt>
                 <dd>

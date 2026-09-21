@@ -5,8 +5,8 @@ import {
   formatDisplayDate,
   getBlockedSlotTag,
   getBookingTag,
+  getSessionConfigs,
   getStudyConfig,
-  sessionConfigs,
 } from "@/lib/booking";
 
 type IcsEvent = {
@@ -86,7 +86,7 @@ function getBookingEvents(bookings: BookingEntry[], tag: StudyTag) {
   return bookings
     .filter((booking) => getBookingTag(booking) === tag)
     .flatMap((booking) =>
-      sessionConfigs.map((session) => {
+      getSessionConfigs(tag).map((session) => {
         const selection = booking.selections[session.id];
         const participant = booking.name
           ? `${booking.name} <${booking.email}>`

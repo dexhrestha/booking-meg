@@ -1,5 +1,5 @@
 export type SessionId = "session1" | "session2" | "session3" | "session4";
-export type StudyTag = "meg-study" | "sensorimotor-study";
+export type StudyTag = "meg-study" | "sensorimotor-study" | "eye-track-monpath";
 
 export type SessionConfig = {
   id: SessionId;
@@ -49,9 +49,25 @@ export type StudyConfig = {
   title: string;
   confirmationSubject: string;
   flyerAlt: string;
+  eligibilityCriteria: string[];
   slotOptions: string[];
-  dateSelectionMode: "first-session" | "per-session";
+  dateSelectionMode: "first-session" | "per-session" | "same-day-consecutive";
+  sessionIds?: SessionId[];
 };
+
+const megEligibilityCriteria = [
+  "You are 18-35 years old.",
+  "You are right-handed.",
+  "You have normal or corrected-to-normal vision.",
+  "You have no metal implants, non-removable piercings, or other non-removable metal.",
+  "You have no metal dental retainers or splints, no braids or extensions, and no non-removable head coverings that could interfere with the MEG setup.",
+  "You have no current neurological, psychological, or psychiatric diagnosis.",
+];
+
+const eyeTrackingEligibilityCriteria = [
+  "You are 18-35 years old.",
+  "You have normal or corrected-to-normal vision.",
+];
 
 export const sessionConfigs: SessionConfig[] = [
   {
@@ -83,12 +99,21 @@ const standardSlotOptions = [
   "15:00 - 17:00",
 ];
 
+const eyeTrackingSlotOptions = [
+  "08:30 - 10:30",
+  "10:30 - 12:30",
+  "13:30 - 15:30",
+  "15:30 - 17:30",
+  "17:30 - 19:30",
+];
+
 export const studyConfigs: Record<StudyTag, StudyConfig> = {
   "meg-study": {
     tag: "meg-study",
     title: "MEG experiment",
     confirmationSubject: "MEG experiment",
     flyerAlt: "MEG long-term memory study recruitment flyer",
+    eligibilityCriteria: megEligibilityCriteria,
     dateSelectionMode: "first-session",
     slotOptions: standardSlotOptions,
   },
@@ -97,8 +122,19 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
     title: "Sensorimotor study",
     confirmationSubject: "sensorimotor study",
     flyerAlt: "Sensorimotor study recruitment flyer",
+    eligibilityCriteria: megEligibilityCriteria,
     dateSelectionMode: "per-session",
     slotOptions: standardSlotOptions,
+  },
+  "eye-track-monpath": {
+    tag: "eye-track-monpath",
+    title: "eye tracking experiment",
+    confirmationSubject: "eye tracking experiment",
+    flyerAlt: "Eye tracking experiment recruitment flyer",
+    eligibilityCriteria: eyeTrackingEligibilityCriteria,
+    dateSelectionMode: "same-day-consecutive",
+    slotOptions: eyeTrackingSlotOptions,
+    sessionIds: ["session1", "session2", "session3"],
   },
 };
 
@@ -109,7 +145,11 @@ export const bookingWindowEndDate = "2026-10-31";
 export const slotOptions = studyConfigs[defaultStudyTag].slotOptions;
 
 export function getStudyTag(tag?: string | null): StudyTag {
-  return tag === "sensorimotor-study" ? "sensorimotor-study" : defaultStudyTag;
+  if (tag === "sensorimotor-study" || tag === "eye-track-monpath") {
+    return tag;
+  }
+
+  return defaultStudyTag;
 }
 
 export function getStudyConfig(tag?: string | null) {
@@ -126,6 +166,52 @@ export function getBlockedSlotTag(blockedSlot: Pick<BlockedSlotEntry, "tag">) {
 
 export function getSlotOptions(tag?: string | null) {
   return getStudyConfig(tag).slotOptions;
+}
+
+function parseSlotRange(slot: string) {
+  const [start, end] = slot.split(" - ").map((value) => value.trim());
+
+  return start && end ? { start, end } : null;
+}
+
+export function getConsecutiveSlots(
+  slotOptions: string[],
+  startSlot: string,
+  sessionCount: number,
+) {
+  const startIndex = slotOptions.indexOf(startSlot);
+
+  if (startIndex < 0) {
+    return [];
+  }
+
+  const slots = slotOptions.slice(startIndex, startIndex + sessionCount);
+
+  if (slots.length !== sessionCount) {
+    return [];
+  }
+
+  const hasNoGaps = slots.every((slot, index) => {
+    if (index === 0) {
+      return true;
+    }
+
+    const previousRange = parseSlotRange(slots[index - 1]);
+    const currentRange = parseSlotRange(slot);
+
+    return Boolean(
+      previousRange && currentRange && previousRange.end === currentRange.start,
+    );
+  });
+
+  return hasNoGaps ? slots : [];
+}
+
+export function getSessionConfigs(tag?: string | null) {
+  const study = getStudyConfig(tag);
+  const sessionIds = study.sessionIds ?? sessionConfigs.map((session) => session.id);
+
+  return sessionConfigs.filter((session) => sessionIds.includes(session.id));
 }
 
 export const initialSelections = sessionConfigs.reduce((acc, session) => {
@@ -228,6 +314,16 @@ export function isAllowedSensorimotorFirstSessionDate(date: string) {
   );
 }
 
+export function isAllowedEyeTrackingDate(date: string) {
+  const parsedDate = parseIsoDate(date);
+  const weekday = parsedDate?.getDay();
+
+  return (
+    (weekday === 1 || weekday === 2 || weekday === 3) &&
+    isWithinBookingWindowWeeks(date, 8)
+  );
+}
+
 export function isWeekdayDate(date: string) {
   const parsedDate = parseIsoDate(date);
   const weekday = parsedDate?.getDay();
@@ -314,15 +410,23 @@ export function formatDisplayDate(date: string) {
 export function buildSelectionsForStartDate(
   firstSessionDate: string,
   currentSelections: BookingState = initialSelections,
+  tag: StudyTag = defaultStudyTag,
 ) {
-  return sessionConfigs.reduce((acc, session) => {
+  const study = getStudyConfig(tag);
+
+  return getSessionConfigs(tag).reduce((acc, session) => {
+    const sessionDate =
+      study.dateSelectionMode === "same-day-consecutive"
+        ? firstSessionDate
+        : getSessionDate(firstSessionDate, session.dayOffset);
+
     acc[session.id] = {
-      day: getSessionDay(firstSessionDate, session.dayOffset),
-      date: getSessionDate(firstSessionDate, session.dayOffset),
+      day: getDayForDate(sessionDate),
+      date: sessionDate,
       slot: currentSelections[session.id]?.slot ?? "",
     };
     return acc;
-  }, {} as BookingState);
+  }, { ...initialSelections } as BookingState);
 }
 
 export function slotKey(date: string, slot: string) {
