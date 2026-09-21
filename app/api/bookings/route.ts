@@ -8,13 +8,13 @@ import {
   formatDisplayDate,
   getBlockedSlotTag,
   getBookingTag,
-  getConsecutiveSlots,
   getDayForDate,
   getEarliestBookingDate,
   getLatestBookingDate,
   getLatestFirstSessionDate,
   getSessionConfigs,
   getSessionDate,
+  getSessionDayOffset,
   getSessionDay,
   getSlotOptions,
   getStudyConfig,
@@ -64,7 +64,7 @@ function isCompleteBooking(booking: BookingEntry, tag?: StudyTag) {
 }
 
 function isFlexibleDateStudy(tag: StudyTag) {
-  return tag === "sensorimotor-study" || tag === "eye-track-monpath";
+  return tag === "sensorimotor-study";
 }
 
 function isAllowedStartDate(firstSessionDate: string, tag: StudyTag) {
@@ -85,7 +85,7 @@ function getInvalidBookingMessage(tag: StudyTag) {
   }
 
   if (tag === "eye-track-monpath") {
-    return `Enter your name and a valid email, accept the eligibility criteria, choose a Monday, Tuesday, or Wednesday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose three consecutive session slots.`;
+    return `Enter your name and a valid email, accept the eligibility criteria, choose a Monday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose every session slot.`;
   }
 
   return `Enter your name and a valid email, accept the eligibility criteria, choose a Thursday date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`;
@@ -221,7 +221,10 @@ function getSessionDatesForFirstSessionDate(
   tag: StudyTag,
 ) {
   return getSessionConfigs(tag).reduce((acc, session) => {
-    acc[session.id] = getSessionDate(firstSessionDate, session.dayOffset);
+    acc[session.id] = getSessionDate(
+      firstSessionDate,
+      getSessionDayOffset(session, tag),
+    );
     return acc;
   }, {} as SessionDateLookup);
 }
@@ -264,12 +267,7 @@ function validateSelections(
     let validDay = false;
     let validDate = false;
 
-    if (tag === "eye-track-monpath") {
-      validDay = selection?.day === getDayForDate(selection?.date ?? "");
-      validDate =
-        selection?.date === firstSessionDate &&
-        isAllowedEyeTrackingDate(firstSessionDate);
-    } else if (tag === "sensorimotor-study") {
+    if (tag === "sensorimotor-study") {
       validDay = selection?.day === getDayForDate(selection?.date ?? "");
       validDate =
         session.id === "session1"
@@ -283,9 +281,11 @@ function validateSelections(
             );
     } else {
       validDay =
-        selection?.day === getSessionDay(firstSessionDate, session.dayOffset);
+        selection?.day ===
+        getSessionDay(firstSessionDate, getSessionDayOffset(session, tag));
       validDate =
-        selection?.date === getSessionDate(firstSessionDate, session.dayOffset);
+        selection?.date ===
+        getSessionDate(firstSessionDate, getSessionDayOffset(session, tag));
     }
 
     if (!validDay || !validDate || !validSlot) {
@@ -311,24 +311,6 @@ function validateSelections(
     selections.session1.date !== firstSessionDate
   ) {
     return "Session 1 date must match the booking start date.";
-  }
-
-  if (tag === "eye-track-monpath") {
-    const selectedSlots = studySessions.map(
-      (session) => selections[session.id].slot,
-    );
-    const consecutiveSlots = getConsecutiveSlots(
-      slotOptions,
-      selectedSlots[0],
-      studySessions.length,
-    );
-    const hasConsecutiveSlots = selectedSlots.every(
-      (slot, index) => slot === consecutiveSlots[index],
-    );
-
-    if (!hasConsecutiveSlots) {
-      return "Eye tracking sessions must use three consecutive two-hour slots.";
-    }
   }
 
   return "";

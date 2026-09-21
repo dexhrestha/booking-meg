@@ -51,8 +51,9 @@ export type StudyConfig = {
   flyerAlt: string;
   eligibilityCriteria: string[];
   slotOptions: string[];
-  dateSelectionMode: "first-session" | "per-session" | "same-day-consecutive";
+  dateSelectionMode: "first-session" | "per-session";
   sessionIds?: SessionId[];
+  sessionDayOffsets?: Partial<Record<SessionId, number>>;
 };
 
 const megEligibilityCriteria = [
@@ -132,9 +133,14 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
     confirmationSubject: "eye tracking experiment",
     flyerAlt: "Eye tracking experiment recruitment flyer",
     eligibilityCriteria: eyeTrackingEligibilityCriteria,
-    dateSelectionMode: "same-day-consecutive",
+    dateSelectionMode: "first-session",
     slotOptions: eyeTrackingSlotOptions,
     sessionIds: ["session1", "session2", "session3"],
+    sessionDayOffsets: {
+      session1: 0,
+      session2: 1,
+      session3: 2,
+    },
   },
 };
 
@@ -168,50 +174,18 @@ export function getSlotOptions(tag?: string | null) {
   return getStudyConfig(tag).slotOptions;
 }
 
-function parseSlotRange(slot: string) {
-  const [start, end] = slot.split(" - ").map((value) => value.trim());
-
-  return start && end ? { start, end } : null;
-}
-
-export function getConsecutiveSlots(
-  slotOptions: string[],
-  startSlot: string,
-  sessionCount: number,
-) {
-  const startIndex = slotOptions.indexOf(startSlot);
-
-  if (startIndex < 0) {
-    return [];
-  }
-
-  const slots = slotOptions.slice(startIndex, startIndex + sessionCount);
-
-  if (slots.length !== sessionCount) {
-    return [];
-  }
-
-  const hasNoGaps = slots.every((slot, index) => {
-    if (index === 0) {
-      return true;
-    }
-
-    const previousRange = parseSlotRange(slots[index - 1]);
-    const currentRange = parseSlotRange(slot);
-
-    return Boolean(
-      previousRange && currentRange && previousRange.end === currentRange.start,
-    );
-  });
-
-  return hasNoGaps ? slots : [];
-}
-
 export function getSessionConfigs(tag?: string | null) {
   const study = getStudyConfig(tag);
   const sessionIds = study.sessionIds ?? sessionConfigs.map((session) => session.id);
 
   return sessionConfigs.filter((session) => sessionIds.includes(session.id));
+}
+
+export function getSessionDayOffset(
+  session: SessionConfig,
+  tag?: string | null,
+) {
+  return getStudyConfig(tag).sessionDayOffsets?.[session.id] ?? session.dayOffset;
 }
 
 export const initialSelections = sessionConfigs.reduce((acc, session) => {
@@ -318,10 +292,7 @@ export function isAllowedEyeTrackingDate(date: string) {
   const parsedDate = parseIsoDate(date);
   const weekday = parsedDate?.getDay();
 
-  return (
-    (weekday === 1 || weekday === 2 || weekday === 3) &&
-    isWithinBookingWindowWeeks(date, 8)
-  );
+  return weekday === 1 && isWithinBookingWindowWeeks(date, 8);
 }
 
 export function isWeekdayDate(date: string) {
@@ -415,10 +386,10 @@ export function buildSelectionsForStartDate(
   const study = getStudyConfig(tag);
 
   return getSessionConfigs(tag).reduce((acc, session) => {
-    const sessionDate =
-      study.dateSelectionMode === "same-day-consecutive"
-        ? firstSessionDate
-        : getSessionDate(firstSessionDate, session.dayOffset);
+    const sessionDate = getSessionDate(
+      firstSessionDate,
+      getSessionDayOffset(session, tag),
+    );
 
     acc[session.id] = {
       day: getDayForDate(sessionDate),
