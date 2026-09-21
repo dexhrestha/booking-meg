@@ -24,7 +24,19 @@ type CimecCalendarResource = {
     label?: string;
     value?: string;
   };
+  subresources?: {
+    label?: string;
+    title?: string;
+    value?: string;
+  }[];
 };
+
+type CimecCalendarExport =
+  | CimecCalendarResource
+  | CimecCalendarResource[]
+  | {
+      calendars?: CimecCalendarResource[];
+    };
 
 export type CimecBlockedSlotEntry = BlockedSlotEntry & {
   source: "cimec-calendar";
@@ -36,6 +48,28 @@ const cimecCalendarFilePattern = /^cimec_calendar.*\.json$/i;
 
 const mentalSimulationPattern = /mental\s+simulation/i;
 const eyelinkResourcePattern = /\beyelink\b/i;
+const megResourcePattern = /\bmeg\b/i;
+
+type CimecCalendarName = "eyelink" | "meg";
+
+type CimecCalendarRule = {
+  calendars: CimecCalendarName[];
+  weekdays?: number[];
+};
+
+const cimecCalendarRules: Record<StudyTag, CimecCalendarRule[]> = {
+  "meg-study": [
+    { calendars: ["meg"], weekdays: [2] },
+    { calendars: ["eyelink"] },
+  ],
+  "sensorimotor-study": [{ calendars: ["eyelink"] }],
+};
+
+function isCimecCalendarCollection(
+  exportData: CimecCalendarExport,
+): exportData is { calendars?: CimecCalendarResource[] } {
+  return !Array.isArray(exportData) && "calendars" in exportData;
+}
 
 function readCimecCalendarResources() {
   const dataDirectory = path.join(process.cwd(), "data");
@@ -46,11 +80,17 @@ function readCimecCalendarResources() {
       .sort()
       .flatMap((fileName) => {
         const filePath = path.join(dataDirectory, fileName);
-        const parsed = JSON.parse(readFileSync(filePath, "utf8")) as
-          | CimecCalendarResource
-          | CimecCalendarResource[];
+        const parsed = JSON.parse(
+          readFileSync(filePath, "utf8"),
+        ) as CimecCalendarExport;
 
-        return Array.isArray(parsed) ? parsed : [parsed];
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+
+        return isCimecCalendarCollection(parsed)
+          ? (parsed.calendars ?? [])
+          : [parsed];
       });
   } catch (error: any) {
     if (error?.code === "ENOENT") {
@@ -110,35 +150,106 @@ function hasMentalSimulationDetails(booking: CimecCalendarBooking) {
   return mentalSimulationPattern.test(details);
 }
 
+function getSlotTypeText(booking?: CimecCalendarBooking) {
+  return booking?.text?.match(/slot type:\s*(.*?)\s+slot id:/i)?.[1] ?? "";
+}
+
+function getResourceSearchText(
+  resource: CimecCalendarResource,
+  booking?: CimecCalendarBooking,
+) {
+  return [
+    resource.resource?.label,
+    resource.resource?.value,
+    ...(resource.subresources ?? []).flatMap((subresource) => [
+      subresource.label,
+      subresource.title,
+      subresource.value,
+    ]),
+    getSlotTypeText(booking),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function getDateWeekday(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  const parsedDate = new Date(year, month - 1, day);
+
+  if (
+    parsedDate.getFullYear() !== year ||
+    parsedDate.getMonth() !== month - 1 ||
+    parsedDate.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsedDate.getDay();
+}
+
+function isCalendarMatch(
+  resource: CimecCalendarResource,
+  calendar: CimecCalendarName,
+  booking?: CimecCalendarBooking,
+) {
+  const resourceText = getResourceSearchText(resource, booking);
+
+  if (calendar === "eyelink") {
+    return eyelinkResourcePattern.test(resourceText);
+  }
+
+  return megResourcePattern.test(resourceText);
+}
+
 function isResourceRelevantForStudy(
   resource: CimecCalendarResource,
   tag: StudyTag,
+  date: string,
+  booking?: CimecCalendarBooking,
 ) {
-  if (tag !== "sensorimotor-study") {
-    return true;
-  }
+  const weekday = getDateWeekday(date);
+  const rules = cimecCalendarRules[tag];
+  const applicableRules = rules.filter((rule) =>
+    rule.weekdays
+      ? weekday !== null && rule.weekdays.includes(weekday)
+      : !rules.some(
+          (weekdayRule) =>
+            weekdayRule.weekdays &&
+            weekday !== null &&
+            weekdayRule.weekdays.includes(weekday),
+        ),
+  );
 
-  const resourceName = [
-    resource.resource?.label,
-    resource.resource?.value,
-  ].filter(Boolean).join(" ");
-
-  return eyelinkResourcePattern.test(resourceName);
+  return applicableRules.some((rule) =>
+    rule.calendars.some((calendar) =>
+      isCalendarMatch(resource, calendar, booking),
+    ),
+  );
 }
 
 export function getCimecOccupiedSlotKeys(tag: StudyTag, date: string) {
   const occupied = new Set<string>();
   const slotOptions = getSlotOptions(tag);
 
-  for (const booking of readCimecCalendarResources()
-    .filter((resource) => isResourceRelevantForStudy(resource, tag))
-    .flatMap((resource) => resource.bookings ?? [])) {
+  for (const { booking, resource } of readCimecCalendarResources()
+    .flatMap((resource) =>
+      (resource.bookings ?? []).map((booking: CimecCalendarBooking) => ({
+        booking,
+        resource,
+      })),
+    )) {
     if (
       booking.date !== date ||
       booking.status !== "busy" ||
       hasMentalSimulationDetails(booking) ||
       !booking.start_time ||
-      !booking.end_time
+      !booking.end_time ||
+      !isResourceRelevantForStudy(resource, tag, booking.date, booking)
     ) {
       continue;
     }
@@ -208,7 +319,14 @@ export function getCimecBlockedSlots() {
       };
 
       for (const study of Object.values(studyConfigs)) {
-        if (!isResourceRelevantForStudy(resource, study.tag)) {
+        if (
+          !isResourceRelevantForStudy(
+            resource,
+            study.tag,
+            booking.date,
+            booking,
+          )
+        ) {
           continue;
         }
 
