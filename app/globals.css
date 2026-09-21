@@ -1508,15 +1508,15 @@ select {
   font-weight: 700;
 }
 
-.admin-password-form {
+.admin-auth-form {
   display: grid;
-  grid-template-columns: minmax(260px, 360px) auto;
+  grid-template-columns: minmax(130px, 180px) auto;
   gap: 12px;
   align-items: end;
   margin-bottom: 18px;
 }
 
-.admin-password-form label {
+.admin-auth-form label {
   display: grid;
   gap: 8px;
   color: var(--muted);
@@ -1524,7 +1524,7 @@ select {
   font-weight: 800;
 }
 
-.admin-password-form input,
+.admin-auth-form input,
 .admin-table-input {
   width: 100%;
   min-height: 40px;
@@ -1535,7 +1535,7 @@ select {
   padding: 0 10px;
 }
 
-.admin-password-form button,
+.admin-auth-form button,
 .admin-actions button {
   min-height: 40px;
   border: 1px solid var(--accent);
@@ -1547,7 +1547,7 @@ select {
   cursor: pointer;
 }
 
-.admin-password-form button:disabled,
+.admin-auth-form button:disabled,
 .admin-actions button:disabled {
   background: #9aa6a2;
   border-color: #9aa6a2;
@@ -1632,14 +1632,14 @@ select {
   .bookings-admin-header,
   .admin-section-header,
   .blocked-slot-item,
-  .admin-password-form,
+  .admin-auth-form,
   .bookings-controls,
   .form-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .admin-password-form,
+  .admin-auth-form,
   .bookings-controls,
   .booking-edit-grid,
   .blocked-slot-form {

@@ -51,23 +51,36 @@ BLOB_BOOKINGS_PATH=bookings.json
 BLOB_BLOCKED_SLOTS_PATH=blocked-slots.json
 ```
 
-For `/admin`, set one of:
+For `/admin`, set a TOTP secret:
 
 ```bash
-BOOKING_ADMIN_PASSWORD=...
-VIEW_BOOKINGS_PASSWORD=...
-ADMIN_PASSWORD=...
+BOOKING_ADMIN_2FA_SECRET=...
 ```
 
-Admin ICS downloads are available per experiment:
+Use the same secret in your authenticator app to generate the 6-digit admin
+PIN. Base32 authenticator secrets are supported; `ADMIN_2FA_SECRET` is also
+accepted as a fallback variable name.
+
+For API access, set one or more admin API tokens:
 
 ```bash
-/api/admin/calendar/meg-study/ics?password=...
-/api/admin/calendar/sensorimotor-study/ics?password=...
+BOOKING_ADMIN_API_TOKEN=use-a-long-random-value
+BOOKING_ADMIN_API_TOKENS=token-one,token-two
 ```
 
-For calendar subscriptions or a polling agent, prefer a separate feed token so
-the admin password does not need to live in a calendar URL:
+API requests may send a token with `x-admin-api-token`, `Authorization: Bearer`,
+or the `token` query parameter. `ADMIN_API_TOKEN` and `ADMIN_API_TOKENS` are also
+accepted as fallback variable names.
+
+Admin ICS downloads are available per experiment with either a PIN or API token:
+
+```bash
+/api/admin/calendar/meg-study/ics?pin=...
+/api/admin/calendar/sensorimotor-study/ics?token=...
+```
+
+For calendar subscriptions or a polling agent, you can also use a separate
+calendar-only feed token:
 
 ```bash
 CALENDAR_FEED_TOKEN=use-a-long-random-value

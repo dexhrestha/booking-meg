@@ -33,29 +33,11 @@ import {
   writeBookings,
 } from "@/lib/bookings-store";
 import { getCimecBlockedSlots } from "@/lib/cimec-calendar";
-
-function getAdminPassword() {
-  return (
-    process.env.BOOKING_ADMIN_PASSWORD ??
-    process.env.VIEW_BOOKINGS_PASSWORD ??
-    process.env.ADMIN_PASSWORD ??
-    ""
-  );
-}
-
-function isAuthorized(request: NextRequest) {
-  const password = request.headers.get("x-admin-password") ?? "";
-  const adminPassword = getAdminPassword();
-
-  return adminPassword !== "" && password === adminPassword;
-}
-
-function unauthorizedResponse() {
-  return NextResponse.json(
-    { message: "Enter the correct bookings password." },
-    { status: 401 },
-  );
-}
+import {
+  authorizeAdminRequest,
+  createAdminSessionToken,
+  unauthorizedAdminResponse,
+} from "@/lib/admin-auth";
 
 function isCompleteBooking(booking: BookingEntry, tag?: StudyTag) {
   return Boolean(
@@ -155,15 +137,21 @@ function validateSelections(
 }
 
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return unauthorizedResponse();
+  const auth = authorizeAdminRequest(request);
+
+  if (!auth.authorized) {
+    return unauthorizedAdminResponse();
   }
 
   try {
     const bookings = await readBookings();
     const blockedSlots = await readBlockedSlots();
 
-    return NextResponse.json(getAdminPayload(bookings, blockedSlots));
+    return NextResponse.json({
+      ...getAdminPayload(bookings, blockedSlots),
+      adminSessionToken:
+        auth.method === "totp" ? createAdminSessionToken() : undefined,
+    });
   } catch (error) {
     return NextResponse.json(
       { message: getStorageErrorMessage(error) },
@@ -173,8 +161,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return unauthorizedResponse();
+  if (!authorizeAdminRequest(request).authorized) {
+    return unauthorizedAdminResponse();
   }
 
   try {
@@ -260,8 +248,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return unauthorizedResponse();
+  if (!authorizeAdminRequest(request).authorized) {
+    return unauthorizedAdminResponse();
   }
 
   try {
@@ -422,8 +410,8 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return unauthorizedResponse();
+  if (!authorizeAdminRequest(request).authorized) {
+    return unauthorizedAdminResponse();
   }
 
   try {

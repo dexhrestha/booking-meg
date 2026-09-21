@@ -30,6 +30,7 @@ type AdminResponse = {
   bookings?: BookingEntry[];
   blockedSlots?: BlockedSlotEntry[];
   cimecBlockedSlots?: CimecBlockedSlotEntry[];
+  adminSessionToken?: string;
   message?: string;
 };
 
@@ -367,7 +368,8 @@ function buildConfirmationEmail(booking: BookingEntry) {
 }
 
 export default function ViewBookingsPage() {
-  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
+  const [adminSessionToken, setAdminSessionToken] = useState("");
   const [bookings, setBookings] = useState<BookingEntry[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<BlockedSlotEntry[]>([]);
   const [cimecBlockedSlots, setCimecBlockedSlots] = useState<
@@ -567,12 +569,19 @@ export default function ViewBookingsPage() {
     method: "GET" | "POST" | "PUT" | "DELETE",
     body?: object,
   ) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (adminSessionToken) {
+      headers["x-admin-session-token"] = adminSessionToken;
+    } else {
+      headers["x-admin-pin"] = pin;
+    }
+
     const response = await fetch("/api/admin/bookings", {
       method,
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-password": password,
-      },
+      headers,
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = await parseJsonResponse<AdminResponse>(response);
@@ -594,9 +603,12 @@ export default function ViewBookingsPage() {
       setBookings(data.bookings ?? []);
       setBlockedSlots(data.blockedSlots ?? []);
       setCimecBlockedSlots(data.cimecBlockedSlots ?? []);
+      setAdminSessionToken(data.adminSessionToken ?? "");
+      setPin("");
       setAuthenticated(true);
     } catch (error) {
       setAuthenticated(false);
+      setAdminSessionToken("");
       setMessage(error instanceof Error ? error.message : "Could not unlock.");
     } finally {
       setIsLoading(false);
@@ -849,14 +861,19 @@ export default function ViewBookingsPage() {
         </div>
 
         {!authenticated ? (
-          <form className="admin-password-form" onSubmit={unlockBookings}>
+          <form className="admin-auth-form" onSubmit={unlockBookings}>
             <label>
-              <span>Password</span>
+              <span>6-digit PIN</span>
               <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Enter password"
+                type="text"
+                value={pin}
+                onChange={(event) =>
+                  setPin(event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                placeholder="123456"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="\d{6}"
                 required
               />
             </label>
