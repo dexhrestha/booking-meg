@@ -24,14 +24,14 @@ const experiments: ExperimentCard[] = [
     image: flyerMegEng,
     meta: "4 sessions · Thursday start",
   },
-  {
-    title: studyConfigs["eye-track-monpath"].title,
-    description:
-      "Book three eye-tracking sessions from Monday through Wednesday.",
-    href: "/eye-ric",
-    image: flyerSpeedEng,
-    meta: "3 sessions · Monday-Wednesday",
-  },
+  // {
+  //   title: studyConfigs["eye-track-monpath"].title,
+  //   description:
+  //     "Book three eye-tracking sessions from Monday through Wednesday.",
+  //   href: "/eye-ric",
+  //   image: flyerSpeedEng,
+  //   meta: "3 sessions · Monday-Wednesday",
+  // },
   // {xw
   //   title: studyConfigs["sensorimotor-study"].title,
   //   description:
