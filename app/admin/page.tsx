@@ -5,6 +5,7 @@ import {
   FormEvent,
   ReactNode,
   useCallback,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -42,6 +43,15 @@ type CimecBlockedSlotEntry = BlockedSlotEntry & {
 
 type StudyFilter = "all" | StudyTag;
 type BlockSource = "manual" | "cimec";
+
+type Participant = {
+  key: string;
+  name: string;
+  email: string;
+  bookings: BookingEntry[];
+  sessionsCount: number;
+  latestSessionDate: string;
+};
 
 type CalendarEvent = {
   id: string;
@@ -362,6 +372,115 @@ function buildConfirmationEmail(booking: BookingEntry) {
   };
 }
 
+function escapeCsvCell(value: string | undefined) {
+  const stringValue = value ?? "";
+
+  if (
+    stringValue.includes(",") ||
+    stringValue.includes("\"") ||
+    stringValue.includes("\n") ||
+    stringValue.includes("\r")
+  ) {
+    return `"${stringValue.replaceAll("\"", "\"\"")}"`;
+  }
+
+  return stringValue;
+}
+
+function getParticipantKey(booking: BookingEntry) {
+  return booking.email.trim().toLowerCase();
+}
+
+function buildParticipants(bookings: BookingEntry[]) {
+  const participantsByEmail = new Map<string, BookingEntry[]>();
+
+  for (const booking of bookings) {
+    const key = getParticipantKey(booking);
+    const existingBookings = participantsByEmail.get(key) ?? [];
+    participantsByEmail.set(key, [...existingBookings, booking]);
+  }
+
+  return Array.from(participantsByEmail.entries())
+    .map(([key, participantBookings]) => {
+      const bookingsByDate = participantBookings.toSorted(
+        (firstBooking, secondBooking) =>
+          firstBooking.firstSessionDate.localeCompare(secondBooking.firstSessionDate) ||
+          getStudyConfig(getBookingTag(firstBooking)).title.localeCompare(
+            getStudyConfig(getBookingTag(secondBooking)).title,
+          ),
+      );
+      const displayBooking = bookingsByDate.find((booking) => booking.name) ??
+        bookingsByDate[0];
+      const sessions = participantBookings.flatMap((booking) =>
+        getSessionConfigs(getBookingTag(booking)).map((session) => {
+          return booking.selections[session.id];
+        }),
+      );
+
+      return {
+        key,
+        name: displayBooking.name || "Unnamed participant",
+        email: displayBooking.email,
+        bookings: bookingsByDate,
+        sessionsCount: sessions.length,
+        latestSessionDate:
+          sessions
+            .map((session) => session?.date ?? "")
+            .filter(Boolean)
+            .toSorted()
+            .at(-1) ?? "",
+      } satisfies Participant;
+    })
+    .toSorted((firstParticipant, secondParticipant) =>
+      firstParticipant.name.localeCompare(secondParticipant.name) ||
+      firstParticipant.email.localeCompare(secondParticipant.email),
+    );
+}
+
+function buildParticipantSessionsCsv(participants: Participant[]) {
+  const header = [
+    "participant_name",
+    "email",
+    "study",
+    "booking_id",
+    "session",
+    "session_day",
+    "session_date",
+    "session_slot",
+    "first_session_date",
+    "booking_created_at",
+    "booking_updated_at",
+  ];
+  const rows = participants.flatMap((participant) =>
+    participant.bookings.flatMap((booking) => {
+      const tag = getBookingTag(booking);
+      const study = getStudyConfig(tag);
+
+      return getSessionConfigs(tag).map((session) => {
+        const selection = booking.selections[session.id];
+
+        return [
+          participant.name,
+          participant.email,
+          study.title,
+          booking.id,
+          session.title,
+          selection.day,
+          selection.date,
+          selection.slot,
+          booking.firstSessionDate,
+          booking.createdAt,
+          booking.updatedAt ?? "",
+        ];
+      });
+    }),
+  );
+
+  return [header, ...rows]
+    .map((row) => row.map(escapeCsvCell).join(","))
+    .join("\n") + "\n";
+}
+
 export default function ViewBookingsPage() {
   const [pin, setPin] = useState("");
   const [adminSessionToken, setAdminSessionToken] = useState("");
@@ -384,6 +503,7 @@ export default function ViewBookingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [studyFilter, setStudyFilter] = useState<StudyFilter>("all");
   const [selectedWeekDate, setSelectedWeekDate] = useState(getTodayIsoDate);
+  const [selectedParticipantKey, setSelectedParticipantKey] = useState("");
 
   const generateConfirmationEmail = useCallback(async (booking: BookingEntry) => {
     const email = buildConfirmationEmail(booking);
@@ -411,7 +531,35 @@ export default function ViewBookingsPage() {
     );
   }, [bookings, studyFilter]);
 
+  const participants = useMemo(() => buildParticipants(bookings), [bookings]);
+
+  const selectedParticipant = useMemo(() => {
+    return (
+      participants.find(
+        (participant) => participant.key === selectedParticipantKey,
+      ) ??
+      participants[0] ??
+      null
+    );
+  }, [participants, selectedParticipantKey]);
+
   const totalBlockedSlots = blockedSlots.length + cimecBlockedSlots.length;
+
+  useEffect(() => {
+    if (participants.length === 0) {
+      setSelectedParticipantKey("");
+      return;
+    }
+
+    if (
+      !selectedParticipantKey ||
+      !participants.some(
+        (participant) => participant.key === selectedParticipantKey,
+      )
+    ) {
+      setSelectedParticipantKey(participants[0].key);
+    }
+  }, [participants, selectedParticipantKey]);
 
   const blockedCalendarEvents = useMemo(() => {
     const manualEvents = blockedSlots.map((blockedSlot) => {
@@ -750,6 +898,22 @@ export default function ViewBookingsPage() {
     URL.revokeObjectURL(url);
   }
 
+  function downloadParticipantSessionsCsv() {
+    const csv = buildParticipantSessionsCsv(participants);
+    const blob = new Blob([csv], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "participant-sessions.csv";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function renderWeekCalendar(events: CalendarEvent[], emptyMessage: string) {
     const weekKeys = getWeeksForCalendarEvents(events, selectedWeekDate);
 
@@ -891,6 +1055,156 @@ export default function ViewBookingsPage() {
 
         {authenticated ? (
           <>
+            <section
+              className="participants-panel"
+              aria-labelledby="admin-participants-title"
+            >
+              <div className="admin-section-header">
+                <div>
+                  <p className="eyebrow">Participants</p>
+                  <h2 id="admin-participants-title">Participant Sessions</h2>
+                </div>
+                <button
+                  className="calendar-download-button"
+                  type="button"
+                  onClick={downloadParticipantSessionsCsv}
+                  disabled={participants.length === 0}
+                >
+                  Download CSV
+                </button>
+              </div>
+
+              {participants.length > 0 ? (
+                <div className="participants-layout">
+                  <div className="participants-list" aria-label="Participants">
+                    {participants.map((participant) => (
+                      <button
+                        type="button"
+                        key={participant.key}
+                        className="participant-list-item"
+                        data-selected={
+                          participant.key === selectedParticipant?.key
+                        }
+                        onClick={() =>
+                          setSelectedParticipantKey(participant.key)
+                        }
+                      >
+                        <span>
+                          <strong>{participant.name}</strong>
+                          <small>{participant.email}</small>
+                        </span>
+                        <em>
+                          {participant.sessionsCount} sessions
+                          {participant.latestSessionDate
+                            ? `, latest ${formatDisplayDate(participant.latestSessionDate)}`
+                            : ""}
+                        </em>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div
+                    className="participant-session-detail"
+                    aria-live="polite"
+                  >
+                    {selectedParticipant ? (
+                      <>
+                        <div className="participant-detail-header">
+                          <div>
+                            <span>Selected participant</span>
+                            <h3>{selectedParticipant.name}</h3>
+                            <p>{selectedParticipant.email}</p>
+                          </div>
+                          <strong>
+                            {selectedParticipant.bookings.length} bookings,{" "}
+                            {selectedParticipant.sessionsCount} sessions
+                          </strong>
+                        </div>
+
+                        <div className="participant-booking-stack">
+                          {selectedParticipant.bookings.map((booking) => {
+                            const tag = getBookingTag(booking);
+                            const study = getStudyConfig(tag);
+
+                            return (
+                              <article
+                                className="participant-booking-card"
+                                key={booking.id}
+                              >
+                                <div className="participant-booking-header">
+                                  <div>
+                                    <span>{study.title}</span>
+                                    <strong>
+                                      First session{" "}
+                                      {formatDisplayDate(
+                                        booking.firstSessionDate,
+                                      )}
+                                    </strong>
+                                  </div>
+                                  <div className="admin-actions">
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingBooking(booking)}
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        generateConfirmationEmail(booking)
+                                      }
+                                    >
+                                      Generate email
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeBooking(booking.id)}
+                                      disabled={isLoading}
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="participant-session-grid">
+                                  {getSessionConfigs(tag).map((session) => {
+                                    const selection =
+                                      booking.selections[session.id];
+
+                                    return (
+                                      <div
+                                        className="participant-session-row"
+                                        key={session.id}
+                                      >
+                                        <span>{session.title}</span>
+                                        <strong>
+                                          {formatDisplayDate(selection.date)}
+                                        </strong>
+                                        <em>{selection.day}</em>
+                                        <small>{selection.slot}</small>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="empty-bookings">
+                        Select a participant to view sessions.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="empty-bookings">
+                  No participants have been saved yet.
+                </p>
+              )}
+            </section>
+
             <section
               className="blocked-slots-panel"
               aria-labelledby="admin-calendar-title"

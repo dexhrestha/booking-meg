@@ -1003,6 +1003,174 @@ select {
   white-space: nowrap;
 }
 
+.participants-panel {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 2px;
+}
+
+.participants-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.participants-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  max-height: 620px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 8px;
+}
+
+.participant-list-item {
+  display: grid;
+  gap: 7px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.participant-list-item:hover,
+.participant-list-item[data-selected="true"] {
+  border-color: rgba(12, 118, 110, 0.24);
+  background: var(--accent-soft);
+}
+
+.participant-list-item strong,
+.participant-list-item small,
+.participant-list-item em {
+  display: block;
+}
+
+.participant-list-item strong {
+  font-size: 0.94rem;
+  line-height: 1.25;
+}
+
+.participant-list-item small,
+.participant-list-item em {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.participant-session-detail {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 14px;
+}
+
+.participant-detail-header,
+.participant-booking-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.participant-detail-header {
+  margin-bottom: 14px;
+}
+
+.participant-detail-header span,
+.participant-booking-header span,
+.participant-session-row span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.participant-detail-header h3 {
+  margin: 3px 0 0;
+  font-size: 1.25rem;
+}
+
+.participant-detail-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.participant-detail-header > strong {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.participant-booking-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.participant-booking-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.participant-booking-header strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.98rem;
+}
+
+.participant-session-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.participant-session-row {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  padding: 10px;
+}
+
+.participant-session-row strong,
+.participant-session-row em,
+.participant-session-row small {
+  overflow-wrap: anywhere;
+}
+
+.participant-session-row strong {
+  font-size: 0.94rem;
+}
+
+.participant-session-row em,
+.participant-session-row small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
 .blocked-slots-panel {
   margin-top: 10px;
   border-top: 1px solid var(--line);
@@ -1579,6 +1747,14 @@ select {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .participants-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .participants-list {
+    max-height: 320px;
+  }
+
   .booking-edit-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1631,6 +1807,8 @@ select {
   .existing-bookings-header,
   .bookings-admin-header,
   .admin-section-header,
+  .participant-detail-header,
+  .participant-booking-header,
   .blocked-slot-item,
   .admin-auth-form,
   .bookings-controls,
@@ -1641,6 +1819,7 @@ select {
 
   .admin-auth-form,
   .bookings-controls,
+  .participant-session-grid,
   .booking-edit-grid,
   .blocked-slot-form {
     grid-template-columns: 1fr;
