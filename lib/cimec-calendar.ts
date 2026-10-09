@@ -64,7 +64,7 @@ const cimecCalendarRules: Record<StudyTag, CimecCalendarRule[]> = {
   ],
   "sensorimotor-study": [{ calendars: ["eyelink"] }],
   "eye-track-monpath": [{ calendars: ["eyelink"] }],
-  "semantic-foraging": [{ calendars: ["eyelink"] }],
+  "semantic-foraging": [],
 };
 
 function isCimecCalendarCollection(
