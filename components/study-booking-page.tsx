@@ -9,10 +9,12 @@ import {
   emptyOccupiedSlotReasons,
   emptyOccupiedSlots,
   formatDisplayDate,
+  getEarliestSemanticForagingBookingDate,
   getDayForDate,
   getEarliestBookingDate,
   getLatestBookingDate,
   getLatestFirstSessionDate,
+  getLatestSemanticForagingBookingDate,
   getSessionConfigs,
   initialSelections,
   isAllowedEyeTrackingDate,
@@ -144,15 +146,21 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   );
   const latestBookingDate = formatDisplayDate(getLatestFirstSessionDate());
   const earliestBookingDate = formatDisplayDate(getEarliestBookingDate());
+  const earliestSemanticForagingBookingDate = formatDisplayDate(
+    getEarliestSemanticForagingBookingDate(),
+  );
   const latestSensorimotorBookingDate = formatDisplayDate(
     getLatestBookingDate(8),
+  );
+  const latestSemanticForagingBookingDate = formatDisplayDate(
+    getLatestSemanticForagingBookingDate(),
   );
   const validationMessages: string[] = [
     !usesPerSessionDates && !startDateSelected
       ? usesEyeTrackingSchedule
         ? `Choose a Monday first-session date between ${earliestBookingDate} and ${latestSensorimotorBookingDate}. Sessions 2 and 3 will be Tuesday and Wednesday.`
         : usesSemanticForagingSchedule
-          ? `Choose a weekday first-session date between ${earliestBookingDate} and ${latestSensorimotorBookingDate}. Session 2 will be the next working day.`
+          ? `Choose a weekday first-session date between ${earliestSemanticForagingBookingDate} and ${latestSemanticForagingBookingDate}. Session 2 will be the next working day.`
         : `Choose a Thursday for the first session between ${earliestBookingDate} and ${latestBookingDate}.`
       : "",
     usesPerSessionDates && missingDates.length > 0
@@ -305,8 +313,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
         usesEyeTrackingSchedule
           ? `Choose a Monday first-session date between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
           : usesSemanticForagingSchedule
-            ? `Choose a weekday first-session date between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
-          : `Choose a Thursday first-session date between ${earliestBookingDate} and ${latestBookingDate}.`,
+            ? `Choose a weekday first-session date between ${earliestSemanticForagingBookingDate} and ${latestSemanticForagingBookingDate}.`
+            : `Choose a Thursday first-session date between ${earliestBookingDate} and ${latestBookingDate}.`,
       );
       return;
     }
@@ -600,16 +608,16 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                   usesEyeTrackingSchedule
                     ? `Select a Monday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
                     : usesSemanticForagingSchedule
-                      ? `Select a weekday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
-                    : undefined
+                      ? `Select a weekday between ${earliestSemanticForagingBookingDate} and ${latestSemanticForagingBookingDate}.`
+                      : undefined
                 }
               />
               <small>
                 {usesEyeTrackingSchedule
                   ? `Session 1 must start on a Monday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
                   : usesSemanticForagingSchedule
-                    ? `Session 1 can start on any weekday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}. Session 2 is the next working day.`
-                  : `Session 1 must start on a Thursday between ${earliestBookingDate} and ${latestBookingDate}.`}
+                    ? `Session 1 can start on any weekday between ${earliestSemanticForagingBookingDate} and ${latestSemanticForagingBookingDate}. Session 2 is the next working day.`
+                    : `Session 1 must start on a Thursday between ${earliestBookingDate} and ${latestBookingDate}.`}
               </small>
             </label>
           ) : null}

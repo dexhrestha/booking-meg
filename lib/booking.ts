@@ -175,6 +175,7 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
 export const defaultStudyTag: StudyTag = "meg-study";
 export const bookingWindowLeadDays = 7;
 export const bookingWindowEndDate = "2026-10-31";
+export const semanticForagingBookingWindowEndDate = "2026-12-31";
 
 export const slotOptions = studyConfigs[defaultStudyTag].slotOptions;
 
@@ -275,12 +276,20 @@ export function getEarliestBookingDate() {
   return formatIsoDate(startOfBookingWindow());
 }
 
+export function getEarliestSemanticForagingBookingDate() {
+  return formatIsoDate(startOfToday());
+}
+
 export function getLatestFirstSessionDate() {
   return bookingWindowEndDate;
 }
 
 export function getLatestBookingDate(_weeks: number) {
   return bookingWindowEndDate;
+}
+
+export function getLatestSemanticForagingBookingDate() {
+  return semanticForagingBookingWindowEndDate;
 }
 
 export function isWithinBookingWindow(date: string) {
@@ -302,6 +311,20 @@ export function isWithinBookingWindowUntil(date: string, endDate: string) {
   const earliestDate = startOfBookingWindow();
 
   return parsedDate >= earliestDate && parsedDate <= latestDate;
+}
+
+export function isWithinBookingWindowFromTodayUntil(
+  date: string,
+  endDate: string,
+) {
+  const parsedDate = parseIsoDate(date);
+  const latestDate = parseIsoDate(endDate);
+
+  if (!parsedDate || !latestDate) {
+    return false;
+  }
+
+  return parsedDate >= startOfToday() && parsedDate <= latestDate;
 }
 
 export function isAllowedFirstSessionDate(date: string) {
@@ -332,7 +355,10 @@ export function isAllowedSemanticForagingDate(date: string) {
   const weekday = parsedDate?.getDay();
 
   return Boolean(weekday && weekday >= 1 && weekday <= 5) &&
-    isWithinBookingWindowWeeks(date, 8);
+    isWithinBookingWindowFromTodayUntil(
+      date,
+      semanticForagingBookingWindowEndDate,
+    );
 }
 
 export function isWeekdayDate(date: string) {

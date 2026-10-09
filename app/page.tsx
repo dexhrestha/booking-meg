@@ -2,6 +2,7 @@ import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 import flyerMegEng from "@/assets/flyer_MEG_eng.png";
 import flyerSemanticForaging from "@/assets/flyer_semantic_foraging.jpeg";
+import flyerSpeedEng from "@/assets/flyer_ita_speed.png";
 import { studyConfigs } from "@/lib/booking";
 
 // import { redirect } from "next/navigation";
@@ -32,14 +33,14 @@ const experiments: ExperimentCard[] = [
     image: flyerSemanticForaging,
     meta: "2 sessions · consecutive weekdays",
   },
-  // {
-  //   title: studyConfigs["eye-track-monpath"].title,
-  //   description:
-  //     "Book three eye-tracking sessions from Monday through Wednesday.",
-  //   href: "/eye-ric",
-  //   image: flyerSpeedEng,
-  //   meta: "3 sessions · Monday-Wednesday",
-  // },
+  {
+    title: studyConfigs["eye-track-monpath"].title,
+    description:
+      "Book three eye-tracking sessions from Monday through Wednesday.",
+    href: "/eye-ric",
+    image: flyerSpeedEng,
+    meta: "3 sessions · Monday-Wednesday",
+  },
   // {xw
   //   title: studyConfigs["sensorimotor-study"].title,
   //   description:
