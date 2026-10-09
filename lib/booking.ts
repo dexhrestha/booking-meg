@@ -1,5 +1,9 @@
 export type SessionId = "session1" | "session2" | "session3" | "session4";
-export type StudyTag = "meg-study" | "sensorimotor-study" | "eye-track-monpath";
+export type StudyTag =
+  | "meg-study"
+  | "sensorimotor-study"
+  | "eye-track-monpath"
+  | "semantic-foraging";
 
 export type SessionConfig = {
   id: SessionId;
@@ -52,6 +56,7 @@ export type StudyConfig = {
   eligibilityCriteria: string[];
   slotOptions: string[];
   dateSelectionMode: "first-session" | "per-session";
+  scheduleMode?: "fixed-offsets" | "consecutive-weekdays";
   sessionIds?: SessionId[];
   sessionDayOffsets?: Partial<Record<SessionId, number>>;
 };
@@ -67,6 +72,11 @@ const megEligibilityCriteria = [
 
 const eyeTrackingEligibilityCriteria = [
   "You are 18-35 years old.",
+  "You have normal or corrected-to-normal vision.",
+];
+
+const semanticForagingEligibilityCriteria = [
+  "You are a native Italian speaker.",
   "You have normal or corrected-to-normal vision.",
 ];
 
@@ -108,6 +118,13 @@ const eyeTrackingSlotOptions = [
   "17:30 - 19:30",
 ];
 
+const semanticForagingSlotOptions = [
+  "08:30 - 10:00",
+  "10:15 - 11:45",
+  "13:00 - 14:30",
+  "14:45 - 16:15",
+];
+
 export const studyConfigs: Record<StudyTag, StudyConfig> = {
   "meg-study": {
     tag: "meg-study",
@@ -142,6 +159,17 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
       session3: 2,
     },
   },
+  "semantic-foraging": {
+    tag: "semantic-foraging",
+    title: "Semantic foraging",
+    confirmationSubject: "semantic foraging experiment",
+    flyerAlt: "Semantic foraging experiment recruitment flyer",
+    eligibilityCriteria: semanticForagingEligibilityCriteria,
+    dateSelectionMode: "first-session",
+    scheduleMode: "consecutive-weekdays",
+    slotOptions: semanticForagingSlotOptions,
+    sessionIds: ["session1", "session2"],
+  },
 };
 
 export const defaultStudyTag: StudyTag = "meg-study";
@@ -151,7 +179,11 @@ export const bookingWindowEndDate = "2026-10-31";
 export const slotOptions = studyConfigs[defaultStudyTag].slotOptions;
 
 export function getStudyTag(tag?: string | null): StudyTag {
-  if (tag === "sensorimotor-study" || tag === "eye-track-monpath") {
+  if (
+    tag === "sensorimotor-study" ||
+    tag === "eye-track-monpath" ||
+    tag === "semantic-foraging"
+  ) {
     return tag;
   }
 
@@ -295,6 +327,14 @@ export function isAllowedEyeTrackingDate(date: string) {
   return weekday === 1 && isWithinBookingWindowWeeks(date, 8);
 }
 
+export function isAllowedSemanticForagingDate(date: string) {
+  const parsedDate = parseIsoDate(date);
+  const weekday = parsedDate?.getDay();
+
+  return Boolean(weekday && weekday >= 1 && weekday <= 5) &&
+    isWithinBookingWindowWeeks(date, 8);
+}
+
 export function isWeekdayDate(date: string) {
   const parsedDate = parseIsoDate(date);
   const weekday = parsedDate?.getDay();
@@ -346,6 +386,54 @@ export function getSessionDate(firstSessionDate: string, dayOffset: number) {
   return formatIsoDate(parsedDate);
 }
 
+function addWeekdays(date: Date, weekdaysToAdd: number) {
+  const nextDate = new Date(date);
+  let remainingDays = weekdaysToAdd;
+
+  while (remainingDays > 0) {
+    nextDate.setDate(nextDate.getDate() + 1);
+
+    const weekday = nextDate.getDay();
+
+    if (weekday >= 1 && weekday <= 5) {
+      remainingDays -= 1;
+    }
+  }
+
+  return nextDate;
+}
+
+export function getSessionDateForStudy(
+  firstSessionDate: string,
+  session: SessionConfig,
+  tag: StudyTag = defaultStudyTag,
+) {
+  const parsedDate = parseIsoDate(firstSessionDate);
+
+  if (!parsedDate) {
+    return "";
+  }
+
+  if (getStudyConfig(tag).scheduleMode === "consecutive-weekdays") {
+    const studySessions = getSessionConfigs(tag);
+    const sessionIndex = studySessions.findIndex(
+      (studySession) => studySession.id === session.id,
+    );
+
+    return formatIsoDate(addWeekdays(parsedDate, Math.max(0, sessionIndex)));
+  }
+
+  return getSessionDate(firstSessionDate, getSessionDayOffset(session, tag));
+}
+
+export function getSessionDayForStudy(
+  firstSessionDate: string,
+  session: SessionConfig,
+  tag: StudyTag = defaultStudyTag,
+) {
+  return getDayForDate(getSessionDateForStudy(firstSessionDate, session, tag));
+}
+
 export function getSessionDay(firstSessionDate: string, dayOffset: number) {
   const sessionDate = getSessionDate(firstSessionDate, dayOffset);
   return getDayForDate(sessionDate);
@@ -386,10 +474,7 @@ export function buildSelectionsForStartDate(
   const study = getStudyConfig(tag);
 
   return getSessionConfigs(tag).reduce((acc, session) => {
-    const sessionDate = getSessionDate(
-      firstSessionDate,
-      getSessionDayOffset(session, tag),
-    );
+    const sessionDate = getSessionDateForStudy(firstSessionDate, session, tag);
 
     acc[session.id] = {
       day: getDayForDate(sessionDate),

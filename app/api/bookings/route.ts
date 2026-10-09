@@ -13,13 +13,13 @@ import {
   getLatestBookingDate,
   getLatestFirstSessionDate,
   getSessionConfigs,
-  getSessionDate,
-  getSessionDayOffset,
-  getSessionDay,
+  getSessionDateForStudy,
+  getSessionDayForStudy,
   getSlotOptions,
   getStudyConfig,
   getStudyTag,
   isAllowedEyeTrackingDate,
+  isAllowedSemanticForagingDate,
   isAllowedSensorimotorFirstSessionDate,
   isAllowedFirstSessionDate,
   isSameOrAfterDate,
@@ -76,6 +76,10 @@ function isAllowedStartDate(firstSessionDate: string, tag: StudyTag) {
     return isAllowedEyeTrackingDate(firstSessionDate);
   }
 
+  if (tag === "semantic-foraging") {
+    return isAllowedSemanticForagingDate(firstSessionDate);
+  }
+
   return isAllowedFirstSessionDate(firstSessionDate);
 }
 
@@ -86,6 +90,10 @@ function getInvalidBookingMessage(tag: StudyTag) {
 
   if (tag === "eye-track-monpath") {
     return `Enter your name and a valid email, accept the eligibility criteria, choose a Monday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose every session slot.`;
+  }
+
+  if (tag === "semantic-foraging") {
+    return `Enter your name and a valid email, accept the eligibility criteria, choose a weekday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose every session slot.`;
   }
 
   return `Enter your name and a valid email, accept the eligibility criteria, choose a Thursday date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`;
@@ -221,10 +229,7 @@ function getSessionDatesForFirstSessionDate(
   tag: StudyTag,
 ) {
   return getSessionConfigs(tag).reduce((acc, session) => {
-    acc[session.id] = getSessionDate(
-      firstSessionDate,
-      getSessionDayOffset(session, tag),
-    );
+    acc[session.id] = getSessionDateForStudy(firstSessionDate, session, tag);
     return acc;
   }, {} as SessionDateLookup);
 }
@@ -281,11 +286,10 @@ function validateSelections(
             );
     } else {
       validDay =
-        selection?.day ===
-        getSessionDay(firstSessionDate, getSessionDayOffset(session, tag));
+        selection?.day === getSessionDayForStudy(firstSessionDate, session, tag);
       validDate =
         selection?.date ===
-        getSessionDate(firstSessionDate, getSessionDayOffset(session, tag));
+        getSessionDateForStudy(firstSessionDate, session, tag);
     }
 
     if (!validDay || !validDate || !validSlot) {

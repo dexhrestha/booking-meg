@@ -11,12 +11,12 @@ import {
   getLatestBookingDate,
   getLatestFirstSessionDate,
   getSessionConfigs,
-  getSessionDate,
-  getSessionDayOffset,
-  getSessionDay,
+  getSessionDateForStudy,
+  getSessionDayForStudy,
   getSlotOptions,
   getStudyTag,
   isAllowedEyeTrackingDate,
+  isAllowedSemanticForagingDate,
   isAllowedSensorimotorFirstSessionDate,
   isAllowedFirstSessionDate,
   isValidIsoDate,
@@ -70,6 +70,10 @@ function isAllowedStartDate(firstSessionDate: string, tag: StudyTag) {
     return isAllowedEyeTrackingDate(firstSessionDate);
   }
 
+  if (tag === "semantic-foraging") {
+    return isAllowedSemanticForagingDate(firstSessionDate);
+  }
+
   return isAllowedFirstSessionDate(firstSessionDate);
 }
 
@@ -80,6 +84,10 @@ function getInvalidBookingMessage(tag: StudyTag) {
 
   if (tag === "eye-track-monpath") {
     return `Enter a name, a valid email, choose a Monday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose every session slot.`;
+  }
+
+  if (tag === "semantic-foraging") {
+    return `Enter a name, a valid email, choose a weekday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose every session slot.`;
   }
 
   return `Enter a name, a valid email, and a Thursday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}.`;
@@ -136,11 +144,10 @@ function validateSelections(
             );
     } else {
       validDay =
-        selection?.day ===
-        getSessionDay(firstSessionDate, getSessionDayOffset(session, tag));
+        selection?.day === getSessionDayForStudy(firstSessionDate, session, tag);
       validDate =
         selection?.date ===
-        getSessionDate(firstSessionDate, getSessionDayOffset(session, tag));
+        getSessionDateForStudy(firstSessionDate, session, tag);
     }
 
     if (!validDay || !validDate || !validSlot) {

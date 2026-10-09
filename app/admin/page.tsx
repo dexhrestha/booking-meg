@@ -1236,6 +1236,9 @@ export default function ViewBookingsPage() {
                     <option value="eye-track-monpath">
                       eye tracking experiment
                     </option>
+                    <option value="semantic-foraging">
+                      Semantic foraging
+                    </option>
                   </select>
                 </label>
                 <label>
@@ -1274,6 +1277,9 @@ export default function ViewBookingsPage() {
                     </option>
                     <option value="eye-track-monpath">
                       eye tracking experiment
+                    </option>
+                    <option value="semantic-foraging">
+                      Semantic foraging
                     </option>
                   </select>
                 </label>

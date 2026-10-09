@@ -16,6 +16,7 @@ import {
   getSessionConfigs,
   initialSelections,
   isAllowedEyeTrackingDate,
+  isAllowedSemanticForagingDate,
   isAllowedSensorimotorFirstSessionDate,
   isAllowedFirstSessionDate,
   isSameOrAfterDate,
@@ -83,6 +84,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   const usesPerSessionDates = study.dateSelectionMode === "per-session";
   const usesSessionDateSelection = usesPerSessionDates;
   const usesEyeTrackingSchedule = study.tag === "eye-track-monpath";
+  const usesSemanticForagingSchedule = study.tag === "semantic-foraging";
   const studySessions = useMemo(() => getSessionConfigs(study.tag), [study.tag]);
   const selectedDateKey = studySessions
     .map((session) => selections[session.id].date)
@@ -111,6 +113,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     ? isAllowedSensorimotorFirstSessionDate(selections.session1.date)
     : usesEyeTrackingSchedule
       ? isAllowedEyeTrackingDate(firstSessionDate)
+      : usesSemanticForagingSchedule
+        ? isAllowedSemanticForagingDate(firstSessionDate)
       : isAllowedFirstSessionDate(firstSessionDate);
   const missingDates = useMemo(
     () =>
@@ -147,6 +151,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     !usesPerSessionDates && !startDateSelected
       ? usesEyeTrackingSchedule
         ? `Choose a Monday first-session date between ${earliestBookingDate} and ${latestSensorimotorBookingDate}. Sessions 2 and 3 will be Tuesday and Wednesday.`
+        : usesSemanticForagingSchedule
+          ? `Choose a weekday first-session date between ${earliestBookingDate} and ${latestSensorimotorBookingDate}. Session 2 will be the next working day.`
         : `Choose a Thursday for the first session between ${earliestBookingDate} and ${latestBookingDate}.`
       : "",
     usesPerSessionDates && missingDates.length > 0
@@ -287,6 +293,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
     const validStartDate = usesEyeTrackingSchedule
       ? isAllowedEyeTrackingDate(value)
+      : usesSemanticForagingSchedule
+        ? isAllowedSemanticForagingDate(value)
       : isAllowedFirstSessionDate(value);
 
     if (value && !validStartDate) {
@@ -296,6 +304,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       setMessage(
         usesEyeTrackingSchedule
           ? `Choose a Monday first-session date between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
+          : usesSemanticForagingSchedule
+            ? `Choose a weekday first-session date between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
           : `Choose a Thursday first-session date between ${earliestBookingDate} and ${latestBookingDate}.`,
       );
       return;
@@ -581,17 +591,24 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                 isDateUnavailable={
                   usesEyeTrackingSchedule
                     ? (date) => !isAllowedEyeTrackingDate(dateToIso(date))
+                    : usesSemanticForagingSchedule
+                      ? (date) =>
+                          !isAllowedSemanticForagingDate(dateToIso(date))
                     : undefined
                 }
                 note={
                   usesEyeTrackingSchedule
                     ? `Select a Monday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
+                    : usesSemanticForagingSchedule
+                      ? `Select a weekday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
                     : undefined
                 }
               />
               <small>
                 {usesEyeTrackingSchedule
                   ? `Session 1 must start on a Monday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
+                  : usesSemanticForagingSchedule
+                    ? `Session 1 can start on any weekday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}. Session 2 is the next working day.`
                   : `Session 1 must start on a Thursday between ${earliestBookingDate} and ${latestBookingDate}.`}
               </small>
             </label>
