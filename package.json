@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:blob": "node scripts/test-blob.mjs"
+    "test:blob": "node scripts/test-blob.mjs",
+    "google:auth": "node scripts/google-auth.mjs"
   },
   "dependencies": {
     "@swc/helpers": "0.5.15",

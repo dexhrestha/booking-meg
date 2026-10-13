@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import {
   BlockedSlotEntry,
   BookingEntry,
@@ -32,6 +32,10 @@ import {
   writeBookings,
 } from "@/lib/bookings-store";
 import { getCimecOccupiedSlotKeys } from "@/lib/cimec-calendar";
+import {
+  getGoogleBusySlotKeys,
+  syncBookingToGoogleCalendar,
+} from "@/lib/google-calendar";
 
 type SessionDateLookup = Partial<Record<SessionId, string>>;
 type OccupiedSlotData = {
@@ -79,7 +83,7 @@ function removeExtraBookingsForEmail(
   );
 }
 
-function getOccupiedSlots(
+async function getOccupiedSlots(
   bookings: BookingEntry[],
   blockedSlots: BlockedSlotEntry[],
   tag: StudyTag,
@@ -154,11 +158,22 @@ function getOccupiedSlots(
     }
   }
 
+  const googleBusySlotKeys = await getGoogleBusySlotKeys(
+    tag,
+    Object.values(sessionDates),
+  );
+
   for (const session of getSessionConfigs(tag)) {
     const requestedDate = sessionDates[session.id];
 
     if (!requestedDate) {
       continue;
+    }
+
+    for (const key of googleBusySlotKeys) {
+      if (key.startsWith(`${requestedDate}|`)) {
+        addOccupiedSlot(session.id, key, "unavailable");
+      }
     }
 
     for (const key of getCimecOccupiedSlotKeys(tag, requestedDate)) {
@@ -256,7 +271,7 @@ export async function GET(request: NextRequest) {
         : getSessionDatesForFirstSessionDate(firstSessionDate ?? "", tag);
 
     return NextResponse.json({
-      ...getOccupiedSlots(
+      ...await getOccupiedSlots(
         bookings,
         blockedSlots,
         tag,
@@ -331,7 +346,7 @@ export async function POST(request: NextRequest) {
           message:
             "This email already has a booking. The saved sessions have been loaded below for editing.",
           existingBooking,
-          ...getOccupiedSlots(
+          ...await getOccupiedSlots(
             bookings,
             blockedSlots,
             tag,
@@ -343,7 +358,7 @@ export async function POST(request: NextRequest) {
     }
 
     const selectedSessionDates = getSessionDatesForSelections(selections, tag);
-    const occupiedSlotData = getOccupiedSlots(
+    const occupiedSlotData = await getOccupiedSlots(
       bookings,
       blockedSlots,
       tag,
@@ -382,13 +397,14 @@ export async function POST(request: NextRequest) {
 
     const updatedBookings = [...bookings, booking];
     await writeBookings(updatedBookings);
+    after(() => syncBookingToGoogleCalendar(null, booking));
 
     return NextResponse.json(
       {
         message:
           `Booking confirmed. Your selected ${study.confirmationSubject} slots have been saved.`,
         booking,
-        ...getOccupiedSlots(
+        ...await getOccupiedSlots(
           updatedBookings,
           blockedSlots,
           tag,
@@ -469,7 +485,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const selectedSessionDates = getSessionDatesForSelections(selections, tag);
-    const occupiedSlotData = getOccupiedSlots(
+    const occupiedSlotData = await getOccupiedSlots(
       bookings,
       blockedSlots,
       tag,
@@ -519,11 +535,27 @@ export async function PUT(request: NextRequest) {
 
     await writeBookings(updatedBookings);
 
+    const previousBooking = bookings[bookingIndex];
+    const removedBookings = bookings.filter(
+      (item) =>
+        item.id !== booking.id &&
+        !updatedBookings.some((updated) => updated.id === item.id),
+    );
+
+    after(async () => {
+      await syncBookingToGoogleCalendar(previousBooking, booking);
+      await Promise.all(
+        removedBookings.map((removed) =>
+          syncBookingToGoogleCalendar(removed, null),
+        ),
+      );
+    });
+
     return NextResponse.json({
       message:
         `Booking updated. Your selected ${study.confirmationSubject} slots have been saved.`,
       booking,
-      ...getOccupiedSlots(
+      ...await getOccupiedSlots(
         updatedBookings,
         blockedSlots,
         tag,

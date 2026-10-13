@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import {
   BlockedSlotEntry,
   BookingEntry,
@@ -27,6 +27,7 @@ import {
   writeBookings,
 } from "@/lib/bookings-store";
 import { getCimecBlockedSlots } from "@/lib/cimec-calendar";
+import { syncBookingToGoogleCalendar } from "@/lib/google-calendar";
 import {
   authorizeAdminRequest,
   createAdminSessionToken,
@@ -339,6 +340,9 @@ export async function PUT(request: NextRequest) {
 
     await writeBookings(updatedBookings);
 
+    const previousBooking = bookings[bookingIndex];
+    after(() => syncBookingToGoogleCalendar(previousBooking, updatedBooking));
+
     return NextResponse.json({
       message: "Booking updated.",
       ...getAdminPayload(updatedBookings, blockedSlots),
@@ -382,6 +386,12 @@ export async function DELETE(request: NextRequest) {
 
     if (id) {
       await writeBookings(updatedBookings);
+
+      const removedBooking = bookings.find((booking) => booking.id === id);
+
+      if (removedBooking) {
+        after(() => syncBookingToGoogleCalendar(removedBooking, null));
+      }
     }
 
     if (blockedSlotId) {

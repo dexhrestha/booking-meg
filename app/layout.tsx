@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,6 +17,10 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {children}
+        <footer className="site-footer">
+          <Link href="/privacy">Privacy Policy</Link> ·{" "}
+          <Link href="/tos">Terms of Service</Link>
+        </footer>
         <Analytics />
       </body>
     </html>
