@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/popover";
 import {
   formatDisplayDate,
-  getLatestFirstSessionDate,
+  getLatestMegFirstSessionDate,
   isAllowedFirstSessionDate,
 } from "@/lib/booking";
 
@@ -19,6 +19,7 @@ type FirstSessionDatePickerProps = {
   onBlur: () => void;
   invalid: boolean;
   disabled?: boolean;
+  defaultMonth?: string;
   isDateUnavailable?: (date: Date) => boolean;
   note?: string;
   placeholder?: string;
@@ -56,8 +57,9 @@ export function FirstSessionDatePicker({
   onBlur,
   invalid,
   disabled = false,
+  defaultMonth,
   isDateUnavailable = isUnavailableFirstSessionDate,
-  note = `Select a Thursday through ${formatDisplayDate(getLatestFirstSessionDate())}.`,
+  note = `Select a Thursday through ${formatDisplayDate(getLatestMegFirstSessionDate())}.`,
   placeholder = "Pick a date",
 }: FirstSessionDatePickerProps) {
   const selectedDate = dateFromIso(value);
@@ -70,6 +72,7 @@ export function FirstSessionDatePicker({
       <PopoverContent>
         <DatePickerCalendar
           selectedDate={selectedDate}
+          defaultMonth={dateFromIso(defaultMonth ?? "")}
           onChange={onChange}
           onBlur={onBlur}
           invalid={invalid}
@@ -83,6 +86,7 @@ export function FirstSessionDatePicker({
 
 function DatePickerCalendar({
   selectedDate,
+  defaultMonth,
   onChange,
   onBlur,
   invalid,
@@ -90,6 +94,7 @@ function DatePickerCalendar({
   note,
 }: {
   selectedDate?: Date;
+  defaultMonth?: Date;
   onChange: (value: string) => void;
   onBlur: () => void;
   invalid: boolean;
@@ -102,6 +107,7 @@ function DatePickerCalendar({
     <>
       <Calendar
         selected={selectedDate}
+        defaultMonth={defaultMonth}
         onSelect={(date) => {
           if (!date) {
             return;

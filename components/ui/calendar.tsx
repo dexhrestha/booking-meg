@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 type CalendarProps = {
   selected?: Date;
+  defaultMonth?: Date;
   onSelect?: (date: Date | undefined) => void;
   disabled?: (date: Date) => boolean;
   className?: string;
@@ -41,12 +42,13 @@ function getCalendarDays(month: Date) {
 
 export function Calendar({
   selected,
+  defaultMonth,
   onSelect,
   disabled,
   className = "",
 }: CalendarProps) {
   const [visibleMonth, setVisibleMonth] = useState(() =>
-    startOfMonth(selected ?? new Date()),
+    startOfMonth(selected ?? defaultMonth ?? new Date()),
   );
   const days = useMemo(() => getCalendarDays(visibleMonth), [visibleMonth]);
   const monthLabel = new Intl.DateTimeFormat("en", {

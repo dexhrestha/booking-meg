@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const totpPeriodSeconds = 30;
 const totpDigits = 6;
-const sessionDurationSeconds = 8 * 60 * 60;
+const sessionDurationSeconds = 24 * 60 * 60;
 
 type AdminAuthResult = {
   authorized: boolean;

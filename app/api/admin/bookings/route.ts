@@ -2,30 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   BlockedSlotEntry,
   BookingEntry,
-  BookingState,
   formatDisplayDate,
   getBlockedSlotTag,
   getBookingTag,
-  getDayForDate,
-  getEarliestBookingDate,
-  getLatestBookingDate,
-  getLatestFirstSessionDate,
+  getScheduleRequirement,
+  getSharedLabClashSlotKeys,
   getSessionConfigs,
-  getSessionDateForStudy,
-  getSessionDayForStudy,
   getSlotOptions,
   getStudyTag,
-  isAllowedEyeTrackingDate,
-  isAllowedSemanticForagingDate,
-  isAllowedSensorimotorFirstSessionDate,
-  isAllowedFirstSessionDate,
-  isValidIsoDate,
-  isSameOrAfterDate,
-  isWithinSameWeek,
-  isWeekdayDate,
+  isAllowedStartDate,
+  isCompleteBooking,
   isValidEmail,
+  isValidIsoDate,
   isValidParticipantName,
+  slotKey,
   StudyTag,
+  validateSelections,
 } from "@/lib/booking";
 import {
   getStorageErrorMessage,
@@ -41,56 +33,8 @@ import {
   unauthorizedAdminResponse,
 } from "@/lib/admin-auth";
 
-function isCompleteBooking(booking: BookingEntry, tag?: StudyTag) {
-  const bookingTag = getBookingTag(booking);
-
-  return Boolean(
-    (!tag || bookingTag === tag) &&
-      booking.id &&
-      booking.email &&
-    booking.firstSessionDate &&
-    booking.selections &&
-    getSessionConfigs(bookingTag).every((session) => {
-      const selection = booking.selections[session.id];
-      return selection?.day && selection?.date && selection?.slot;
-    })
-  );
-}
-
-function isFlexibleDateStudy(tag: StudyTag) {
-  return tag === "sensorimotor-study";
-}
-
-function isAllowedStartDate(firstSessionDate: string, tag: StudyTag) {
-  if (tag === "sensorimotor-study") {
-    return isAllowedSensorimotorFirstSessionDate(firstSessionDate);
-  }
-
-  if (tag === "eye-track-monpath") {
-    return isAllowedEyeTrackingDate(firstSessionDate);
-  }
-
-  if (tag === "semantic-foraging") {
-    return isAllowedSemanticForagingDate(firstSessionDate);
-  }
-
-  return isAllowedFirstSessionDate(firstSessionDate);
-}
-
 function getInvalidBookingMessage(tag: StudyTag) {
-  if (tag === "sensorimotor-study") {
-    return `Enter a name, a valid email, choose Session 1 on a Monday or Tuesday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and keep the remaining sessions on weekdays in that same week.`;
-  }
-
-  if (tag === "eye-track-monpath") {
-    return `Enter a name, a valid email, choose a Monday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose every session slot.`;
-  }
-
-  if (tag === "semantic-foraging") {
-    return `Enter a name, a valid email, choose a weekday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose every session slot.`;
-  }
-
-  return `Enter a name, a valid email, and a Thursday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}.`;
+  return `Enter a name and a valid email, ${getScheduleRequirement(tag)}, and choose every session slot.`;
 }
 
 function isCompleteBlockedSlot(blockedSlot: BlockedSlotEntry) {
@@ -114,68 +58,6 @@ function getAdminPayload(
     ),
     cimecBlockedSlots: getCimecBlockedSlots(),
   };
-}
-
-function validateSelections(
-  selections: BookingState,
-  firstSessionDate: string,
-  tag: StudyTag,
-) {
-  const slotOptions = getSlotOptions(tag);
-  const studySessions = getSessionConfigs(tag);
-
-  for (const session of studySessions) {
-    const selection = selections?.[session.id];
-    const validSlot = slotOptions.includes(selection?.slot);
-    let validDay = false;
-    let validDate = false;
-
-    if (tag === "sensorimotor-study") {
-      validDay = selection?.day === getDayForDate(selection?.date ?? "");
-      validDate =
-        session.id === "session1"
-          ? isAllowedSensorimotorFirstSessionDate(selection?.date ?? "")
-          : isWithinSameWeek(selection?.date ?? "", selections.session1.date) &&
-            isWeekdayDate(selection?.date ?? "") &&
-            isSameOrAfterDate(
-              selection?.date ?? "",
-              selections[studySessions[studySessions.indexOf(session) - 1].id]
-                .date,
-            );
-    } else {
-      validDay =
-        selection?.day === getSessionDayForStudy(firstSessionDate, session, tag);
-      validDate =
-        selection?.date ===
-        getSessionDateForStudy(firstSessionDate, session, tag);
-    }
-
-    if (!validDay || !validDate || !validSlot) {
-      return `${session.title} has an invalid day, date, or slot.`;
-    }
-  }
-
-  const duplicateSelection = studySessions.find((session, index) =>
-    studySessions.slice(0, index).some((previousSession) => {
-      const current = selections[session.id];
-      const previous = selections[previousSession.id];
-
-      return current.date === previous.date && current.slot === previous.slot;
-    }),
-  );
-
-  if (duplicateSelection) {
-    return `${duplicateSelection.title} uses a date and time already selected for an earlier session.`;
-  }
-
-  if (
-    isFlexibleDateStudy(tag) &&
-    selections.session1.date !== firstSessionDate
-  ) {
-    return "Session 1 date must match the booking start date.";
-  }
-
-  return "";
 }
 
 export async function GET(request: NextRequest) {
@@ -395,6 +277,28 @@ export async function PUT(request: NextRequest) {
     );
   }
 
+  const labClash = getSessionConfigs(tag).find((session) => {
+    const selection = booking.selections[session.id];
+
+    return getSharedLabClashSlotKeys(
+      bookings,
+      tag,
+      selection.date,
+      booking.id,
+    ).includes(slotKey(selection.date, selection.slot));
+  });
+
+  if (labClash) {
+    const selection = booking.selections[labClash.id];
+
+    return NextResponse.json(
+      {
+        message: `${labClash.title} on ${selection.day}, ${selection.date} at ${selection.slot} overlaps another experiment in the same lab.`,
+      },
+      { status: 409 },
+    );
+  }
+
   const blockedConflict = blockedSlots.find(
     (blockedSlot) =>
       getBlockedSlotTag(blockedSlot) === tag &&
@@ -422,6 +326,7 @@ export async function PUT(request: NextRequest) {
     tag,
     name,
     email,
+    speaksEnglish: booking.speaksEnglish === true,
     firstSessionDate: booking.firstSessionDate,
     selections: booking.selections,
     updatedAt: new Date().toISOString(),

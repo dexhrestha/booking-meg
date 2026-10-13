@@ -24,6 +24,8 @@ export type BookingEntry = {
   tag?: StudyTag;
   name?: string;
   email: string;
+  speaksEnglish?: boolean;
+  weekendSessionsAccepted?: boolean;
   firstSessionDate: string;
   selections: BookingState;
   criteriaAcceptedAt?: string;
@@ -59,6 +61,9 @@ export type StudyConfig = {
   scheduleMode?: "fixed-offsets" | "consecutive-weekdays";
   sessionIds?: SessionId[];
   sessionDayOffsets?: Partial<Record<SessionId, number>>;
+  // Participants must also agree to short sessions on the Saturday and
+  // Sunday between Session 2 and Session 3.
+  requiresWeekendSessions?: boolean;
 };
 
 const megEligibilityCriteria = [
@@ -134,6 +139,7 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
     eligibilityCriteria: megEligibilityCriteria,
     dateSelectionMode: "first-session",
     slotOptions: standardSlotOptions,
+    requiresWeekendSessions: true,
   },
   "sensorimotor-study": {
     tag: "sensorimotor-study",
@@ -146,18 +152,13 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
   },
   "eye-track-monpath": {
     tag: "eye-track-monpath",
-    title: "eye tracking experiment",
-    confirmationSubject: "eye tracking experiment",
-    flyerAlt: "Eye tracking experiment recruitment flyer",
+    title: "MonPath",
+    confirmationSubject: "MonPath",
+    flyerAlt: "MonPath recruitment flyer",
     eligibilityCriteria: eyeTrackingEligibilityCriteria,
-    dateSelectionMode: "first-session",
+    dateSelectionMode: "per-session",
     slotOptions: eyeTrackingSlotOptions,
     sessionIds: ["session1", "session2", "session3"],
-    sessionDayOffsets: {
-      session1: 0,
-      session2: 1,
-      session3: 2,
-    },
   },
   "semantic-foraging": {
     tag: "semantic-foraging",
@@ -175,7 +176,12 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
 export const defaultStudyTag: StudyTag = "meg-study";
 export const bookingWindowLeadDays = 7;
 export const bookingWindowEndDate = "2026-10-31";
+export const megBookingWindowEndDate = "2027-02-28";
 export const semanticForagingBookingWindowEndDate = "2026-12-31";
+export const monpathSessionWindowDays = 60;
+export const monpathFirstSessionEndDate = "2026-12-31";
+// Monday, Tuesday, Wednesday.
+export const monpathWeekdays = [1, 2, 3];
 
 export const slotOptions = studyConfigs[defaultStudyTag].slotOptions;
 
@@ -284,8 +290,8 @@ export function getLatestFirstSessionDate() {
   return bookingWindowEndDate;
 }
 
-export function getLatestBookingDate(_weeks: number) {
-  return bookingWindowEndDate;
+export function getLatestMegFirstSessionDate() {
+  return megBookingWindowEndDate;
 }
 
 export function getLatestSemanticForagingBookingDate() {
@@ -294,10 +300,6 @@ export function getLatestSemanticForagingBookingDate() {
 
 export function isWithinBookingWindow(date: string) {
   return isWithinBookingWindowUntil(date, bookingWindowEndDate);
-}
-
-export function isWithinBookingWindowWeeks(date: string, weeks: number) {
-  return isWithinBookingWindowUntil(date, getLatestBookingDate(weeks));
 }
 
 export function isWithinBookingWindowUntil(date: string, endDate: string) {
@@ -331,7 +333,9 @@ export function isAllowedFirstSessionDate(date: string) {
   const parsedDate = parseIsoDate(date);
   const weekday = parsedDate?.getDay();
 
-  return weekday === 4 && isWithinBookingWindow(date);
+  return (
+    weekday === 4 && isWithinBookingWindowUntil(date, megBookingWindowEndDate)
+  );
 }
 
 export function isAllowedSensorimotorFirstSessionDate(date: string) {
@@ -339,15 +343,21 @@ export function isAllowedSensorimotorFirstSessionDate(date: string) {
   const weekday = parsedDate?.getDay();
 
   return (
-    (weekday === 1 || weekday === 2) && isWithinBookingWindowWeeks(date, 8)
+    (weekday === 1 || weekday === 2) && isWithinBookingWindow(date)
   );
 }
 
-export function isAllowedEyeTrackingDate(date: string) {
-  const parsedDate = parseIsoDate(date);
-  const weekday = parsedDate?.getDay();
+export function isMonpathWeekday(date: string) {
+  const weekday = parseIsoDate(date)?.getDay();
 
-  return weekday === 1 && isWithinBookingWindowWeeks(date, 8);
+  return weekday !== undefined && monpathWeekdays.includes(weekday);
+}
+
+export function isAllowedMonpathFirstSessionDate(date: string) {
+  return (
+    isMonpathWeekday(date) &&
+    isWithinBookingWindowUntil(date, monpathFirstSessionEndDate)
+  );
 }
 
 export function isAllowedSemanticForagingDate(date: string) {
@@ -368,7 +378,7 @@ export function isWeekdayDate(date: string) {
   return Boolean(weekday && weekday >= 1 && weekday <= 5);
 }
 
-export function isSameOrAfterDate(date: string, comparisonDate: string) {
+export function isAfterDate(date: string, comparisonDate: string) {
   const parsedDate = parseIsoDate(date);
   const parsedComparisonDate = parseIsoDate(comparisonDate);
 
@@ -377,6 +387,25 @@ export function isSameOrAfterDate(date: string, comparisonDate: string) {
   }
 
   return parsedDate > parsedComparisonDate;
+}
+
+export function isWithinDaysOfDate(
+  date: string,
+  startDate: string,
+  days: number,
+) {
+  const parsedDate = parseIsoDate(date);
+  const parsedStartDate = parseIsoDate(startDate);
+
+  if (!parsedDate || !parsedStartDate) {
+    return false;
+  }
+
+  const latestDate = new Date(parsedStartDate);
+  latestDate.setDate(latestDate.getDate() + days);
+  latestDate.setHours(23, 59, 59, 999);
+
+  return parsedDate >= parsedStartDate && parsedDate <= latestDate;
 }
 
 export function isWithinSameWeek(date: string, weekDate: string) {
@@ -497,8 +526,6 @@ export function buildSelectionsForStartDate(
   currentSelections: BookingState = initialSelections,
   tag: StudyTag = defaultStudyTag,
 ) {
-  const study = getStudyConfig(tag);
-
   return getSessionConfigs(tag).reduce((acc, session) => {
     const sessionDate = getSessionDateForStudy(firstSessionDate, session, tag);
 
@@ -509,6 +536,302 @@ export function buildSelectionsForStartDate(
     };
     return acc;
   }, { ...initialSelections } as BookingState);
+}
+
+export function isFlexibleDateStudy(tag: StudyTag) {
+  return getStudyConfig(tag).dateSelectionMode === "per-session";
+}
+
+export function isAllowedStartDate(firstSessionDate: string, tag: StudyTag) {
+  if (tag === "sensorimotor-study") {
+    return isAllowedSensorimotorFirstSessionDate(firstSessionDate);
+  }
+
+  if (tag === "eye-track-monpath") {
+    return isAllowedMonpathFirstSessionDate(firstSessionDate);
+  }
+
+  if (tag === "semantic-foraging") {
+    return isAllowedSemanticForagingDate(firstSessionDate);
+  }
+
+  return isAllowedFirstSessionDate(firstSessionDate);
+}
+
+export function getScheduleRequirement(tag: StudyTag) {
+  const earliestDate = formatDisplayDate(getEarliestBookingDate());
+  const latestDate = formatDisplayDate(getLatestFirstSessionDate());
+
+  if (tag === "sensorimotor-study") {
+    return `choose Session 1 on a Monday or Tuesday between ${earliestDate} and ${latestDate}, and keep the remaining sessions on later weekdays in that same week`;
+  }
+
+  if (tag === "eye-track-monpath") {
+    return `choose Session 1 on a Monday, Tuesday, or Wednesday between ${earliestDate} and ${formatDisplayDate(monpathFirstSessionEndDate)}, and schedule each later session on a Monday, Tuesday, or Wednesday after the previous one, within ${monpathSessionWindowDays} days of Session 1`;
+  }
+
+  if (tag === "semantic-foraging") {
+    return `choose a weekday first-session date between ${formatDisplayDate(getEarliestSemanticForagingBookingDate())} and ${formatDisplayDate(getLatestSemanticForagingBookingDate())}`;
+  }
+
+  return `choose a Thursday first-session date between ${earliestDate} and ${formatDisplayDate(getLatestMegFirstSessionDate())}`;
+}
+
+export function getLatestMonpathSessionDate(firstSessionDate: string) {
+  return getSessionDate(firstSessionDate, monpathSessionWindowDays);
+}
+
+/**
+ * Date rule for a session in a per-session study. Later sessions are checked
+ * against the dates already chosen for earlier sessions.
+ */
+export function isAllowedPerSessionDate(
+  tag: StudyTag,
+  sessionIndex: number,
+  date: string,
+  selections: BookingState,
+) {
+  const studySessions = getSessionConfigs(tag);
+
+  if (sessionIndex === 0) {
+    return isAllowedStartDate(date, tag);
+  }
+
+  const firstSessionDate = selections.session1.date;
+  const previousSessionDate =
+    selections[studySessions[sessionIndex - 1].id]?.date ?? "";
+
+  if (!isAfterDate(date, previousSessionDate)) {
+    return false;
+  }
+
+  if (tag === "eye-track-monpath") {
+    return (
+      isMonpathWeekday(date) &&
+      isWithinDaysOfDate(date, firstSessionDate, monpathSessionWindowDays)
+    );
+  }
+
+  return isWeekdayDate(date) && isWithinSameWeek(date, firstSessionDate);
+}
+
+export function getPerSessionDateRule(
+  tag: StudyTag,
+  sessionIndex: number,
+  selections: BookingState,
+) {
+  const earliestDate = formatDisplayDate(getEarliestBookingDate());
+  const latestDate = formatDisplayDate(getLatestFirstSessionDate());
+
+  if (tag === "eye-track-monpath") {
+    if (sessionIndex === 0) {
+      return `Select a Monday, Tuesday, or Wednesday between ${earliestDate} and ${formatDisplayDate(monpathFirstSessionEndDate)}.`;
+    }
+
+    const firstSessionDate = selections.session1.date;
+
+    return firstSessionDate
+      ? `Select a Monday, Tuesday, or Wednesday after the previous session, up to ${formatDisplayDate(getLatestMonpathSessionDate(firstSessionDate))} (${monpathSessionWindowDays} days after Session 1).`
+      : `Select a Monday, Tuesday, or Wednesday within ${monpathSessionWindowDays} days of Session 1.`;
+  }
+
+  return sessionIndex === 0
+    ? `Select a Monday or Tuesday between ${earliestDate} and ${latestDate}.`
+    : "Select a weekday in the same week, after the previous session date.";
+}
+
+export function isCompleteBooking(booking: BookingEntry, tag?: StudyTag) {
+  const bookingTag = getBookingTag(booking);
+
+  return Boolean(
+    (!tag || bookingTag === tag) &&
+      booking.id &&
+      booking.email &&
+      booking.firstSessionDate &&
+      booking.selections &&
+      getSessionConfigs(bookingTag).every((session) => {
+        const selection = booking.selections[session.id];
+        return selection?.day && selection?.date && selection?.slot;
+      }),
+  );
+}
+
+/** Returns an error message, or "" when the selections are valid. */
+export function validateSelections(
+  selections: BookingState,
+  firstSessionDate: string,
+  tag: StudyTag,
+) {
+  const slotOptions = getSlotOptions(tag);
+  const studySessions = getSessionConfigs(tag);
+  const flexibleDates = isFlexibleDateStudy(tag);
+
+  for (const [sessionIndex, session] of studySessions.entries()) {
+    const selection = selections?.[session.id];
+
+    if (!selection) {
+      return `${session.title} is missing.`;
+    }
+
+    const validSlot = slotOptions.includes(selection.slot);
+    const validDay = flexibleDates
+      ? selection.day === getDayForDate(selection.date)
+      : selection.day === getSessionDayForStudy(firstSessionDate, session, tag);
+    const validDate = flexibleDates
+      ? isAllowedPerSessionDate(tag, sessionIndex, selection.date, selections)
+      : selection.date === getSessionDateForStudy(firstSessionDate, session, tag);
+
+    if (!validDay || !validDate || !validSlot) {
+      return `${session.title} has an invalid day, date, or slot.`;
+    }
+  }
+
+  const duplicateSelection = studySessions.find((session, index) =>
+    studySessions.slice(0, index).some((previousSession) => {
+      const current = selections[session.id];
+      const previous = selections[previousSession.id];
+
+      return current.date === previous.date && current.slot === previous.slot;
+    }),
+  );
+
+  if (duplicateSelection) {
+    return `${duplicateSelection.title} uses a date and time already selected for an earlier session.`;
+  }
+
+  if (flexibleDates && selections.session1.date !== firstSessionDate) {
+    return "Session 1 date must match the booking start date.";
+  }
+
+  return "";
+}
+
+export type Lab = "eye-tracking" | "meg";
+
+/**
+ * Which physical lab a study uses on a given date. Studies that share a lab
+ * must not book overlapping times there. MEG uses the MEG lab on Tuesdays and
+ * the eye-tracking lab on its other days. Studies without a lab entry do not
+ * take part in cross-study clash checks.
+ */
+export function getLabForStudyDate(tag: StudyTag, date: string): Lab | null {
+  const weekday = parseIsoDate(date)?.getDay();
+
+  if (weekday === undefined) {
+    return null;
+  }
+
+  if (tag === "meg-study") {
+    return weekday === 2 ? "meg" : "eye-tracking";
+  }
+
+  if (tag === "eye-track-monpath") {
+    return "eye-tracking";
+  }
+
+  return null;
+}
+
+function timeToMinutes(time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+
+  return hours * 60 + minutes;
+}
+
+export type MinuteRange = { startMinutes: number; endMinutes: number };
+
+export function parseTimeRange(start: string, end: string): MinuteRange | null {
+  const startMinutes = timeToMinutes(start.trim());
+  const endMinutes = timeToMinutes(end.trim());
+
+  if (
+    startMinutes === null ||
+    endMinutes === null ||
+    endMinutes <= startMinutes
+  ) {
+    return null;
+  }
+
+  return { startMinutes, endMinutes };
+}
+
+export function parseSlotRange(slot: string) {
+  const [start, end] = slot.split(" - ");
+
+  return parseTimeRange(start ?? "", end ?? "");
+}
+
+export function rangesOverlap(first: MinuteRange, second: MinuteRange) {
+  return (
+    first.startMinutes < second.endMinutes &&
+    second.startMinutes < first.endMinutes
+  );
+}
+
+export function slotsOverlap(first: string, second: string) {
+  const firstRange = parseSlotRange(first);
+  const secondRange = parseSlotRange(second);
+
+  return Boolean(
+    firstRange && secondRange && rangesOverlap(firstRange, secondRange),
+  );
+}
+
+/**
+ * Slot keys of `tag` on `date` that clash with another study's booking in the
+ * same lab at an overlapping time.
+ */
+export function getSharedLabClashSlotKeys(
+  bookings: BookingEntry[],
+  tag: StudyTag,
+  date: string,
+  excludedBookingId?: string,
+) {
+  const lab = getLabForStudyDate(tag, date);
+  const clashes = new Set<string>();
+
+  if (!lab) {
+    return [];
+  }
+
+  for (const booking of bookings) {
+    const bookingTag = getBookingTag(booking);
+
+    if (booking.id === excludedBookingId || bookingTag === tag) {
+      continue;
+    }
+
+    for (const session of getSessionConfigs(bookingTag)) {
+      const selection = booking.selections?.[session.id];
+
+      if (
+        selection?.date !== date ||
+        !selection.slot ||
+        getLabForStudyDate(bookingTag, date) !== lab
+      ) {
+        continue;
+      }
+
+      for (const slot of getSlotOptions(tag)) {
+        if (slotsOverlap(slot, selection.slot)) {
+          clashes.add(slotKey(date, slot));
+        }
+      }
+    }
+  }
+
+  return [...clashes];
 }
 
 export function slotKey(date: string, slot: string) {

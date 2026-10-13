@@ -9,21 +9,18 @@ import {
   emptyOccupiedSlotReasons,
   emptyOccupiedSlots,
   formatDisplayDate,
-  getEarliestSemanticForagingBookingDate,
   getDayForDate,
   getEarliestBookingDate,
-  getLatestBookingDate,
-  getLatestFirstSessionDate,
+  getEarliestSemanticForagingBookingDate,
+  getLatestMegFirstSessionDate,
   getLatestSemanticForagingBookingDate,
+  getPerSessionDateRule,
+  getScheduleRequirement,
   getSessionConfigs,
+  getSessionDate,
   initialSelections,
-  isAllowedEyeTrackingDate,
-  isAllowedSemanticForagingDate,
-  isAllowedSensorimotorFirstSessionDate,
-  isAllowedFirstSessionDate,
-  isSameOrAfterDate,
-  isWithinSameWeek,
-  isWeekdayDate,
+  isAllowedPerSessionDate,
+  isAllowedStartDate,
   isValidEmail,
   isValidParticipantName,
   OccupiedSlotReasons,
@@ -68,6 +65,9 @@ function getSessionActivityLabel(sessionId: SessionId) {
 export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [speaksEnglish, setSpeaksEnglish] = useState<boolean | null>(null);
+  const [weekendSessionsAccepted, setWeekendSessionsAccepted] =
+    useState(false);
   const [criteriaAccepted, setCriteriaAccepted] = useState(false);
   const [firstSessionDate, setFirstSessionDate] = useState("");
   const [selections, setSelections] = useState<BookingState>(initialSelections);
@@ -84,9 +84,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
   const usesPerSessionDates = study.dateSelectionMode === "per-session";
-  const usesSessionDateSelection = usesPerSessionDates;
-  const usesEyeTrackingSchedule = study.tag === "eye-track-monpath";
   const usesSemanticForagingSchedule = study.tag === "semantic-foraging";
+  const requiresWeekendSessions = study.requiresWeekendSessions === true;
   const studySessions = useMemo(() => getSessionConfigs(study.tag), [study.tag]);
   const selectedDateKey = studySessions
     .map((session) => selections[session.id].date)
@@ -111,63 +110,47 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
   const nameLooksValid = isValidParticipantName(name);
   const emailLooksValid = isValidEmail(email);
-  const startDateSelected = usesSessionDateSelection
-    ? isAllowedSensorimotorFirstSessionDate(selections.session1.date)
-    : usesEyeTrackingSchedule
-      ? isAllowedEyeTrackingDate(firstSessionDate)
-      : usesSemanticForagingSchedule
-        ? isAllowedSemanticForagingDate(firstSessionDate)
-      : isAllowedFirstSessionDate(firstSessionDate);
-  const missingDates = useMemo(
+  const startDateSelected = isAllowedStartDate(
+    usesPerSessionDates ? selections.session1.date : firstSessionDate,
+    study.tag,
+  );
+  const invalidSessionDates = useMemo(
     () =>
-      usesSessionDateSelection
+      usesPerSessionDates
         ? studySessions.filter(
             (session, index) =>
-              session.id === "session1"
-                ? !isAllowedSensorimotorFirstSessionDate(
-                    selections[session.id].date,
-                  )
-                : !isWithinSameWeek(
-                    selections[session.id].date,
-                    selections.session1.date,
-                  ) ||
-                  !isWeekdayDate(selections[session.id].date) ||
-                  !isSameOrAfterDate(
-                    selections[session.id].date,
-                    selections[studySessions[index - 1].id].date,
-                  ),
+              !isAllowedPerSessionDate(
+                study.tag,
+                index,
+                selections[session.id].date,
+                selections,
+              ),
           )
         : [],
-    [
-      selections,
-      studySessions,
-      usesSessionDateSelection,
-    ],
+    [selections, study.tag, studySessions, usesPerSessionDates],
   );
-  const latestBookingDate = formatDisplayDate(getLatestFirstSessionDate());
+  const latestBookingDate = formatDisplayDate(getLatestMegFirstSessionDate());
   const earliestBookingDate = formatDisplayDate(getEarliestBookingDate());
   const earliestSemanticForagingBookingDate = formatDisplayDate(
     getEarliestSemanticForagingBookingDate(),
   );
-  const latestSensorimotorBookingDate = formatDisplayDate(
-    getLatestBookingDate(8),
-  );
   const latestSemanticForagingBookingDate = formatDisplayDate(
     getLatestSemanticForagingBookingDate(),
   );
+  const scheduleRequirement = getScheduleRequirement(study.tag);
+  const scheduleMessage = `${scheduleRequirement.charAt(0).toUpperCase()}${scheduleRequirement.slice(1)}.`;
   const validationMessages: string[] = [
-    !usesPerSessionDates && !startDateSelected
-      ? usesEyeTrackingSchedule
-        ? `Choose a Monday first-session date between ${earliestBookingDate} and ${latestSensorimotorBookingDate}. Sessions 2 and 3 will be Tuesday and Wednesday.`
-        : usesSemanticForagingSchedule
-          ? `Choose a weekday first-session date between ${earliestSemanticForagingBookingDate} and ${latestSemanticForagingBookingDate}. Session 2 will be the next working day.`
-        : `Choose a Thursday for the first session between ${earliestBookingDate} and ${latestBookingDate}.`
-      : "",
-    usesPerSessionDates && missingDates.length > 0
-      ? `Choose Session 1 on a Monday or Tuesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}, then keep Sessions 2-4 on weekdays in that same week, on or after the previous session date.`
+    (usesPerSessionDates ? invalidSessionDates.length > 0 : !startDateSelected)
+      ? scheduleMessage
       : "",
     !nameLooksValid ? "Enter your name." : "",
     !emailLooksValid ? "Enter a valid email address." : "",
+    speaksEnglish === null
+      ? "Let us know whether you can follow instructions in English."
+      : "",
+    requiresWeekendSessions && !weekendSessionsAccepted
+      ? "Confirm that you can attend the Saturday and Sunday sessions."
+      : "",
     !criteriaAccepted
       ? "Read and accept the eligibility criteria before booking."
       : "",
@@ -178,9 +161,11 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   const formIsComplete =
     nameLooksValid &&
     emailLooksValid &&
+    speaksEnglish !== null &&
+    (!requiresWeekendSessions || weekendSessionsAccepted) &&
     criteriaAccepted &&
     startDateSelected &&
-    missingDates.length === 0 &&
+    invalidSessionDates.length === 0 &&
     missingSlots.length === 0 &&
     unavailableSelections.length === 0;
 
@@ -195,7 +180,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
       const params = new URLSearchParams({ tag: study.tag });
 
-      if (usesSessionDateSelection) {
+      if (usesPerSessionDates) {
         studySessions.forEach((session) => {
           const date = selections[session.id].date;
 
@@ -257,7 +242,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     startDateSelected,
     studySessions,
     study.tag,
-    usesSessionDateSelection,
+    usesPerSessionDates,
   ]);
 
   function updateSelection(
@@ -274,48 +259,15 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     }));
   }
 
-  function clearLaterSessions(
-    current: BookingState,
-    startIndex: number,
-    keepStartDate: boolean,
-  ) {
-    const next = { ...current };
-
-    for (let index = startIndex; index < studySessions.length; index += 1) {
-      const session = studySessions[index];
-      const existing = next[session.id];
-
-      next[session.id] = {
-        day: index === startIndex && keepStartDate ? existing.day : "",
-        date: index === startIndex && keepStartDate ? existing.date : "",
-        slot: "",
-      };
-    }
-
-    return next;
-  }
-
   function handleFirstSessionDateChange(value: string) {
     setTouched(true);
     setBooking(null);
 
-    const validStartDate = usesEyeTrackingSchedule
-      ? isAllowedEyeTrackingDate(value)
-      : usesSemanticForagingSchedule
-        ? isAllowedSemanticForagingDate(value)
-      : isAllowedFirstSessionDate(value);
-
-    if (value && !validStartDate) {
+    if (value && !isAllowedStartDate(value, study.tag)) {
       setFirstSessionDate("");
       setOccupiedSlots(emptyOccupiedSlots());
       setOccupiedSlotReasons(emptyOccupiedSlotReasons());
-      setMessage(
-        usesEyeTrackingSchedule
-          ? `Choose a Monday first-session date between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
-          : usesSemanticForagingSchedule
-            ? `Choose a weekday first-session date between ${earliestSemanticForagingBookingDate} and ${latestSemanticForagingBookingDate}.`
-            : `Choose a Thursday first-session date between ${earliestBookingDate} and ${latestBookingDate}.`,
-      );
+      setMessage(scheduleMessage);
       return;
     }
 
@@ -342,21 +294,11 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   }
 
   function isSessionDateUnavailable(date: Date, sessionIndex: number) {
-    const isoDate = dateToIso(date);
-    const previousSession = studySessions[sessionIndex - 1];
-
-    if (sessionIndex === 0) {
-      return !isAllowedSensorimotorFirstSessionDate(isoDate);
-    }
-
-    if (!previousSession || !selections.session1.date) {
-      return true;
-    }
-
-    return (
-      !isWithinSameWeek(isoDate, selections.session1.date) ||
-      !isWeekdayDate(isoDate) ||
-      !isSameOrAfterDate(isoDate, selections[previousSession.id].date)
+    return !isAllowedPerSessionDate(
+      study.tag,
+      sessionIndex,
+      dateToIso(date),
+      selections,
     );
   }
 
@@ -368,40 +310,37 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     setTouched(true);
     setBooking(null);
 
-    if (
-      sessionId === "session1" &&
-      !isAllowedSensorimotorFirstSessionDate(value)
-    ) {
-      setMessage(
-        `Choose Session 1 on a Monday or Tuesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`,
-      );
-      return;
-    }
-
-    if (
-      sessionId !== "session1" &&
-      (!isWithinSameWeek(value, selections.session1.date) ||
-        !isWeekdayDate(value) ||
-        !isSameOrAfterDate(
-          value,
-          selections[studySessions[sessionIndex - 1].id].date,
-        ))
-    ) {
-      setMessage(
-        "Choose a weekday in the same week, on or after the previous session date.",
-      );
+    if (!isAllowedPerSessionDate(study.tag, sessionIndex, value, selections)) {
+      setMessage(getPerSessionDateRule(study.tag, sessionIndex, selections));
       return;
     }
 
     setMessage("");
     setSelections((current) => {
-      const next = clearLaterSessions(current, sessionIndex, true);
-
-      next[sessionId] = {
-        day: getDayForDate(value),
-        date: value,
-        slot: "",
+      const next: BookingState = {
+        ...current,
+        [sessionId]: { day: getDayForDate(value), date: value, slot: "" },
       };
+
+      // Keep later sessions that still satisfy the date rules; clear the
+      // first one that no longer does, and everything after it.
+      for (let index = sessionIndex + 1; index < studySessions.length; index += 1) {
+        const laterSession = studySessions[index];
+
+        if (
+          !isAllowedPerSessionDate(
+            study.tag,
+            index,
+            next[laterSession.id].date,
+            next,
+          )
+        ) {
+          for (const clearedSession of studySessions.slice(index)) {
+            next[clearedSession.id] = { day: "", date: "", slot: "" };
+          }
+          break;
+        }
+      }
 
       return next;
     });
@@ -412,25 +351,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   }
 
   function handleSlotChange(sessionId: SessionId, value: string) {
-    if (!usesSessionDateSelection) {
-      updateSelection(sessionId, "slot", value);
-      return;
-    }
-
-    const sessionIndex = studySessions.findIndex(
-      (session) => session.id === sessionId,
-    );
-
-    setSelections((current) => {
-      const next = clearLaterSessions(current, sessionIndex, true);
-
-      next[sessionId] = {
-        ...next[sessionId],
-        slot: value,
-      };
-
-      return next;
-    });
+    updateSelection(sessionId, "slot", value);
   }
 
   function loadExistingBooking(existingBooking: BookingEntry) {
@@ -442,6 +363,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     setEditingBookingId(existingBooking.id);
     setName(existingBooking.name ?? "");
     setEmail(existingBooking.email);
+    setSpeaksEnglish(existingBooking.speaksEnglish ?? null);
+    setWeekendSessionsAccepted(existingBooking.weekendSessionsAccepted ?? false);
     setCriteriaAccepted(false);
     setFirstSessionDate(existingBooking.firstSessionDate);
     setSelections(existingBooking.selections);
@@ -450,6 +373,8 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   function cancelEdit() {
     setEmail("");
     setName("");
+    setSpeaksEnglish(null);
+    setWeekendSessionsAccepted(false);
     setCriteriaAccepted(false);
     setFirstSessionDate("");
     setEditingBookingId("");
@@ -501,8 +426,12 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
           tag: study.tag,
           name: name.trim(),
           email: email.trim().toLowerCase(),
+          speaksEnglish,
+          weekendSessionsAccepted: requiresWeekendSessions
+            ? weekendSessionsAccepted
+            : undefined,
           criteriaAccepted,
-          firstSessionDate: usesSessionDateSelection
+          firstSessionDate: usesPerSessionDates
             ? selections.session1.date
             : firstSessionDate,
           selections,
@@ -586,7 +515,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
             <p className="eyebrow">Booking details</p>
             <h2>Choose your session slots</h2>
           </div>
-          {!usesSessionDateSelection ? (
+          {!usesPerSessionDates ? (
             <label className="date-field">
               <span>First session date</span>
               <FirstSessionDatePicker
@@ -596,28 +525,19 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                 invalid={
                   touched && firstSessionDate !== "" && !startDateSelected
                 }
-                isDateUnavailable={
-                  usesEyeTrackingSchedule
-                    ? (date) => !isAllowedEyeTrackingDate(dateToIso(date))
-                    : usesSemanticForagingSchedule
-                      ? (date) =>
-                          !isAllowedSemanticForagingDate(dateToIso(date))
-                    : undefined
+                isDateUnavailable={(date) =>
+                  !isAllowedStartDate(dateToIso(date), study.tag)
                 }
                 note={
-                  usesEyeTrackingSchedule
-                    ? `Select a Monday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
-                    : usesSemanticForagingSchedule
-                      ? `Select a weekday between ${earliestSemanticForagingBookingDate} and ${latestSemanticForagingBookingDate}.`
-                      : undefined
+                  usesSemanticForagingSchedule
+                    ? `Select a weekday between ${earliestSemanticForagingBookingDate} and ${latestSemanticForagingBookingDate}.`
+                    : undefined
                 }
               />
               <small>
-                {usesEyeTrackingSchedule
-                  ? `Session 1 must start on a Monday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
-                  : usesSemanticForagingSchedule
-                    ? `Session 1 can start on any weekday between ${earliestSemanticForagingBookingDate} and ${latestSemanticForagingBookingDate}. Session 2 is the next working day.`
-                    : `Session 1 must start on a Thursday between ${earliestBookingDate} and ${latestBookingDate}.`}
+                {usesSemanticForagingSchedule
+                  ? `Session 1 can start on any weekday between ${earliestSemanticForagingBookingDate} and ${latestSemanticForagingBookingDate}. Session 2 is the next working day.`
+                  : `Session 1 must start on a Thursday between ${earliestBookingDate} and ${latestBookingDate}.`}
               </small>
             </label>
           ) : null}
@@ -648,6 +568,34 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                 required
               />
             </label>
+            <fieldset
+              className="choice-field"
+              aria-invalid={touched && speaksEnglish === null}
+            >
+              <legend>
+                Are you able to understand and follow instructions in English?
+              </legend>
+              <div className="choice-options">
+                {[
+                  { label: "Yes", value: true },
+                  { label: "No", value: false },
+                ].map((option) => (
+                  <label className="choice-option" key={option.label}>
+                    <input
+                      type="radio"
+                      name={`${study.tag}-speaks-english`}
+                      checked={speaksEnglish === option.value}
+                      onChange={() => {
+                        setSpeaksEnglish(option.value);
+                        setBooking(null);
+                      }}
+                      required
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           </div>
         </div>
 
@@ -687,14 +635,14 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
           {studySessions.map((session, sessionIndex) => {
             const previousSession = studySessions[sessionIndex - 1];
             const sessionUnlocked =
-              !usesSessionDateSelection ||
+              !usesPerSessionDates ||
               !previousSession ||
               Boolean(
                 selections[previousSession.id].date &&
                   selections[previousSession.id].slot,
               );
             const selectedDate = selections[session.id].date;
-            const slotPickerEnabled = usesSessionDateSelection
+            const slotPickerEnabled = usesPerSessionDates
               ? sessionUnlocked && Boolean(selectedDate)
               : startDateSelected;
 
@@ -719,28 +667,27 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                       invalid={
                         touched &&
                         selectedDate !== "" &&
-                        (session.id === "session1"
-                          ? !isAllowedSensorimotorFirstSessionDate(selectedDate)
-                          : !isWithinSameWeek(
-                              selectedDate,
-                              selections.session1.date,
-                            ) ||
-                            !isWeekdayDate(selectedDate) ||
-                            !isSameOrAfterDate(
-                              selectedDate,
-                              selections[studySessions[sessionIndex - 1].id]
-                                .date,
-                            ))
+                        !isAllowedPerSessionDate(
+                          study.tag,
+                          sessionIndex,
+                          selectedDate,
+                          selections,
+                        )
                       }
                       disabled={!sessionUnlocked}
+                      defaultMonth={
+                        previousSession
+                          ? selections[previousSession.id].date
+                          : undefined
+                      }
                       isDateUnavailable={(date) =>
                         isSessionDateUnavailable(date, sessionIndex)
                       }
-                      note={
-                        session.id === "session1"
-                          ? `Select a Monday or Tuesday between ${earliestBookingDate} and ${latestSensorimotorBookingDate}.`
-                          : "Select a weekday in the same week, on or after the previous session date."
-                      }
+                      note={getPerSessionDateRule(
+                        study.tag,
+                        sessionIndex,
+                        selections,
+                      )}
                       placeholder={
                         sessionUnlocked
                           ? "Pick a date"
@@ -768,7 +715,7 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                     const key = slotKey(selections[session.id].date, slot);
                     const isBooked = occupiedSlots[session.id].includes(key);
                     const isSelectedEarlier =
-                      usesSessionDateSelection &&
+                      usesPerSessionDates &&
                       studySessions
                         .slice(0, sessionIndex)
                         .some(
@@ -847,6 +794,29 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
             />
             <span>I have read and meet all of the eligibility criteria.</span>
           </label>
+          {requiresWeekendSessions ? (
+            <label className="criteria-acceptance">
+              <input
+                type="checkbox"
+                checked={weekendSessionsAccepted}
+                onChange={(event) => {
+                  setWeekendSessionsAccepted(event.target.checked);
+                  setTouched(true);
+                  setBooking(null);
+                }}
+                required
+              />
+              <span>
+                I agree to also complete a short session of about 30 minutes
+                on both the Saturday and the Sunday between Session 2 and
+                Session 3
+                {startDateSelected
+                  ? ` (${formatDisplayDate(getSessionDate(firstSessionDate, 2))} and ${formatDisplayDate(getSessionDate(firstSessionDate, 3))})`
+                  : ""}
+                .
+              </span>
+            </label>
+          ) : null}
         </section>
 
         {touched && validationMessages.length > 0 ? (

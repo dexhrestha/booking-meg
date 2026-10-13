@@ -2,7 +2,7 @@ import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 import flyerMegEng from "@/assets/flyer_MEG_eng.png";
 import flyerSemanticForaging from "@/assets/flyer_semantic_foraging.jpeg";
-import flyerSpeedEng from "@/assets/flyer_ita_speed.png";
+import flyerMonpath from "@/assets/flyer_monpath.webp";
 import { studyConfigs } from "@/lib/booking";
 
 // import { redirect } from "next/navigation";
@@ -36,19 +36,11 @@ const experiments: ExperimentCard[] = [
   {
     title: studyConfigs["eye-track-monpath"].title,
     description:
-      "Book three eye-tracking sessions from Monday through Wednesday.",
-    href: "/eye-ric",
-    image: flyerSpeedEng,
-    meta: "3 sessions · Monday-Wednesday",
+      "Book three MonPath sessions on Mondays, Tuesdays, or Wednesdays within 60 days.",
+    href: "/monpath",
+    image: flyerMonpath,
+    meta: "3 sessions · Mon–Wed within 60 days",
   },
-  // {xw
-  //   title: studyConfigs["sensorimotor-study"].title,
-  //   description:
-  //     "Choose session dates and hourly lab slots for the sensorimotor experiment.",
-  //   href: "/sensorimotor-study",
-  //   image: flyerSpeedEng,
-  //   meta: "4 sessions · same week",
-  // },
 ];
 
 export default function Home() {

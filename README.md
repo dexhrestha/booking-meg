@@ -61,6 +61,10 @@ Use the same secret in your authenticator app to generate the 6-digit admin
 PIN. Base32 authenticator secrets are supported; `ADMIN_2FA_SECRET` is also
 accepted as a fallback variable name.
 
+After a successful PIN login, the admin page stores a signed browser session for
+24 hours. The OTP is not stored; the page reuses the signed session token until
+it expires, then asks for a new PIN.
+
 For API access, set one or more admin API tokens:
 
 ```bash

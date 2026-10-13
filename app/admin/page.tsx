@@ -13,13 +13,15 @@ import { FirstSessionDatePicker } from "@/components/first-session-date-picker";
 import {
   BlockedSlotEntry,
   BookingEntry,
+  SessionId,
   StudyTag,
   buildSelectionsForStartDate,
   formatDisplayDate,
   getBookingTag,
   getBlockedSlotTag,
   getEarliestBookingDate,
-  getLatestFirstSessionDate,
+  getDayForDate,
+  getLatestMegFirstSessionDate,
   getSessionConfigs,
   getSlotOptions,
   getStudyConfig,
@@ -41,8 +43,8 @@ type CimecBlockedSlotEntry = BlockedSlotEntry & {
   timeRange: string;
 };
 
-type StudyFilter = "all" | StudyTag;
 type BlockSource = "manual" | "cimec";
+type AdminModal = "edit" | "remove" | "block" | null;
 
 type Participant = {
   key: string;
@@ -65,6 +67,7 @@ type CalendarEvent = {
   actions?: ReactNode;
 };
 
+const adminSessionStorageKey = "booking-meg-admin-session";
 const calendarDayLabels = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
 const calendarStartMinutes = 8 * 60;
 const calendarEndMinutes = 19 * 60;
@@ -81,6 +84,75 @@ async function parseJsonResponse<T>(response: Response) {
   }
 
   return JSON.parse(text) as T;
+}
+
+function getAdminSessionExpiry(token: string) {
+  const [payload] = token.split(".");
+
+  if (!payload) {
+    return 0;
+  }
+
+  try {
+    const normalizedPayload = payload
+      .replaceAll("-", "+")
+      .replaceAll("_", "/")
+      .padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const session = JSON.parse(atob(normalizedPayload)) as { exp?: unknown };
+
+    return typeof session.exp === "number" && Number.isFinite(session.exp)
+      ? session.exp * 1000
+      : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function readStoredAdminSession() {
+  try {
+    const storedSession = window.localStorage.getItem(adminSessionStorageKey);
+
+    if (!storedSession) {
+      return "";
+    }
+
+    const session = JSON.parse(storedSession) as {
+      token?: unknown;
+      expiresAt?: unknown;
+    };
+
+    if (
+      typeof session.token !== "string" ||
+      typeof session.expiresAt !== "number" ||
+      session.expiresAt <= Date.now()
+    ) {
+      window.localStorage.removeItem(adminSessionStorageKey);
+      return "";
+    }
+
+    return session.token;
+  } catch {
+    window.localStorage.removeItem(adminSessionStorageKey);
+    return "";
+  }
+}
+
+function storeAdminSession(token: string) {
+  const expiresAt = getAdminSessionExpiry(token);
+
+  if (!token || expiresAt <= Date.now()) {
+    window.localStorage.removeItem(adminSessionStorageKey);
+    return;
+  }
+
+  window.localStorage.setItem(
+    adminSessionStorageKey,
+    JSON.stringify({ token, expiresAt }),
+  );
+}
+
+function clearStoredAdminSession() {
+  window.localStorage.removeItem(adminSessionStorageKey);
 }
 
 function parseLocalDate(date: string) {
@@ -441,6 +513,8 @@ function buildParticipantSessionsCsv(participants: Participant[]) {
   const header = [
     "participant_name",
     "email",
+    "speaks_english",
+    "weekend_sessions_accepted",
     "study",
     "booking_id",
     "session",
@@ -462,6 +536,12 @@ function buildParticipantSessionsCsv(participants: Participant[]) {
         return [
           participant.name,
           participant.email,
+          booking.speaksEnglish === true ? "yes" : "no",
+          study.requiresWeekendSessions
+            ? booking.weekendSessionsAccepted === true
+              ? "yes"
+              : "no"
+            : "",
           study.title,
           booking.id,
           session.title,
@@ -495,13 +575,18 @@ export default function ViewBookingsPage() {
     studyConfigs["meg-study"].slotOptions[0],
   );
   const [blockNote, setBlockNote] = useState("");
-  const [editingBooking, setEditingBooking] = useState<BookingEntry | null>(
+  const [editingBooking, setEditingBooking] = useState<BookingEntry | null>(null);
+  const [bookingToRemove, setBookingToRemove] = useState<BookingEntry | null>(
     null,
   );
+  const [adminModal, setAdminModal] = useState<AdminModal>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [hoverBlockMode, setHoverBlockMode] = useState(false);
+  const [movingSessionId, setMovingSessionId] = useState<SessionId | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [studyFilter, setStudyFilter] = useState<StudyFilter>("all");
+  const [studyFilter, setStudyFilter] = useState<StudyTag>("meg-study");
   const [selectedWeekDate, setSelectedWeekDate] = useState(getTodayIsoDate);
   const [selectedParticipantKey, setSelectedParticipantKey] = useState("");
 
@@ -526,12 +611,13 @@ export default function ViewBookingsPage() {
   }, []);
 
   const visibleBookings = useMemo(() => {
-    return bookings.filter(
-      (booking) => studyFilter === "all" || getBookingTag(booking) === studyFilter,
-    );
+    return bookings.filter((booking) => getBookingTag(booking) === studyFilter);
   }, [bookings, studyFilter]);
 
-  const participants = useMemo(() => buildParticipants(bookings), [bookings]);
+  const participants = useMemo(
+    () => buildParticipants(visibleBookings),
+    [visibleBookings],
+  );
 
   const selectedParticipant = useMemo(() => {
     return (
@@ -583,7 +669,7 @@ export default function ViewBookingsPage() {
 
     return [...manualEvents, ...cimecEvents]
       .filter(({ blockedSlot, tag }) => {
-        const matchesStudy = studyFilter === "all" || tag === studyFilter;
+        const matchesStudy = tag === studyFilter;
         const matchesDate = isDateInSelectedWeek(
           blockedSlot.date,
           selectedWeekDate,
@@ -657,7 +743,10 @@ export default function ViewBookingsPage() {
             variant: "booking",
             actions: (
               <>
-                <button type="button" onClick={() => setEditingBooking(booking)}>
+                <button
+                  type="button"
+                  onClick={() => openEditBooking(booking, session.id)}
+                >
                   Edit
                 </button>
                 <button
@@ -668,7 +757,7 @@ export default function ViewBookingsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => removeBooking(booking.id)}
+                  onClick={() => openRemoveBooking(booking)}
                   disabled={isLoading}
                 >
                   Remove
@@ -688,6 +777,8 @@ export default function ViewBookingsPage() {
   }, [
     generateConfirmationEmail,
     isLoading,
+    openEditBooking,
+    openRemoveBooking,
     selectedWeekDate,
     visibleBookings,
   ]);
@@ -708,16 +799,36 @@ export default function ViewBookingsPage() {
     [calendarEvents],
   );
 
+  const occupiedCalendarSlots = useMemo(() => {
+    const slots = new Set<string>();
+
+    for (const event of calendarEvents) {
+      slots.add(`${event.date}|${event.slot}`);
+    }
+
+    return slots;
+  }, [calendarEvents]);
+
+  useEffect(() => {
+    setBlockStudy(studyFilter);
+    setBlockSlot(getSlotOptions(studyFilter)[0]);
+    setEditingBooking(null);
+    setBookingToRemove(null);
+    setMovingSessionId(null);
+    setAdminModal(null);
+  }, [studyFilter]);
+
   async function requestAdminBookings(
     method: "GET" | "POST" | "PUT" | "DELETE",
     body?: object,
+    sessionToken = adminSessionToken,
   ) {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
 
-    if (adminSessionToken) {
-      headers["x-admin-session-token"] = adminSessionToken;
+    if (sessionToken) {
+      headers["x-admin-session-token"] = sessionToken;
     } else {
       headers["x-admin-pin"] = pin;
     }
@@ -730,11 +841,62 @@ export default function ViewBookingsPage() {
     const data = await parseJsonResponse<AdminResponse>(response);
 
     if (!response.ok) {
+      if (response.status === 401 && sessionToken) {
+        clearStoredAdminSession();
+        setAdminSessionToken("");
+        setAuthenticated(false);
+      }
+
       throw new Error(data.message ?? "Request failed.");
     }
 
     return data;
   }
+
+  useEffect(() => {
+    const storedToken = readStoredAdminSession();
+
+    if (!storedToken) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function restoreAdminSession() {
+      setIsLoading(true);
+      setMessage("");
+
+      try {
+        const data = await requestAdminBookings("GET", undefined, storedToken);
+
+        if (cancelled) {
+          return;
+        }
+
+        setBookings(data.bookings ?? []);
+        setBlockedSlots(data.blockedSlots ?? []);
+        setCimecBlockedSlots(data.cimecBlockedSlots ?? []);
+        setAdminSessionToken(storedToken);
+        setAuthenticated(true);
+      } catch (error) {
+        if (!cancelled) {
+          setMessage(
+            error instanceof Error ? error.message : "Could not restore login.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    restoreAdminSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function unlockBookings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -746,12 +908,19 @@ export default function ViewBookingsPage() {
       setBookings(data.bookings ?? []);
       setBlockedSlots(data.blockedSlots ?? []);
       setCimecBlockedSlots(data.cimecBlockedSlots ?? []);
-      setAdminSessionToken(data.adminSessionToken ?? "");
+      const nextSessionToken = data.adminSessionToken ?? "";
+
+      if (nextSessionToken) {
+        storeAdminSession(nextSessionToken);
+      }
+
+      setAdminSessionToken(nextSessionToken);
       setPin("");
       setAuthenticated(true);
     } catch (error) {
       setAuthenticated(false);
       setAdminSessionToken("");
+      clearStoredAdminSession();
       setMessage(error instanceof Error ? error.message : "Could not unlock.");
     } finally {
       setIsLoading(false);
@@ -767,15 +936,114 @@ export default function ViewBookingsPage() {
       return;
     }
 
+    const tag = getBookingTag(editingBooking);
+    const study = getStudyConfig(tag);
+
+    if (study.dateSelectionMode === "per-session") {
+      updateEditingBooking({
+        ...editingBooking,
+        firstSessionDate,
+        selections: {
+          ...editingBooking.selections,
+          session1: {
+            ...editingBooking.selections.session1,
+            day: getDayForDate(firstSessionDate),
+            date: firstSessionDate,
+          },
+        },
+      });
+      return;
+    }
+
     updateEditingBooking({
       ...editingBooking,
       firstSessionDate,
       selections: buildSelectionsForStartDate(
         firstSessionDate,
         editingBooking.selections,
-        getBookingTag(editingBooking),
+        tag,
       ),
     });
+  }
+
+  function openEditBooking(booking: BookingEntry, sessionId?: SessionId) {
+    setEditingBooking(booking);
+    setMovingSessionId(sessionId ?? null);
+    setAdminModal("edit");
+  }
+
+  function openRemoveBooking(booking: BookingEntry) {
+    setBookingToRemove(booking);
+    setAdminModal("remove");
+  }
+
+  function openBlockSlot(date?: string, slot?: string) {
+    setBlockStudy(studyFilter);
+
+    if (date) {
+      setBlockDate(date);
+    }
+
+    if (slot) {
+      setBlockSlot(slot);
+    } else {
+      setBlockSlot(getSlotOptions(studyFilter)[0]);
+    }
+
+    setAdminModal("block");
+  }
+
+  function closeAdminModal() {
+    setAdminModal(null);
+    setMovingSessionId(null);
+  }
+
+  function moveEditingSession(date: string, slot: string) {
+    if (!editingBooking || !movingSessionId) {
+      return;
+    }
+
+    const editingTag = getBookingTag(editingBooking);
+    const movingSelection = editingBooking.selections[movingSessionId];
+
+    if (
+      getStudyConfig(editingTag).dateSelectionMode !== "per-session" &&
+      date !== movingSelection.date
+    ) {
+      setMessage(
+        "This experiment has fixed session dates. Use the first-session date field to change the schedule.",
+      );
+      return;
+    }
+
+    const nextSlotKey = `${date}|${slot}`;
+    const currentSlotKey = `${movingSelection.date}|${movingSelection.slot}`;
+
+    if (
+      nextSlotKey !== currentSlotKey &&
+      occupiedCalendarSlots.has(nextSlotKey)
+    ) {
+      setMessage("That slot is already occupied or blocked for this experiment.");
+      return;
+    }
+
+    updateEditingBooking({
+      ...editingBooking,
+      firstSessionDate:
+        movingSessionId === "session1" ? date : editingBooking.firstSessionDate,
+      selections: {
+        ...editingBooking.selections,
+        [movingSessionId]: {
+          day: getDayForDate(date),
+          date,
+          slot,
+        },
+      },
+    });
+    setEditMode(false);
+    setMovingSessionId(null);
+    setAdminModal("edit");
+    setMessage(`${movingSessionId.replace("session", "Session ")} moved. Save changes to confirm.`);
   }
 
   async function saveBooking() {
@@ -794,6 +1062,8 @@ export default function ViewBookingsPage() {
       setBlockedSlots(data.blockedSlots ?? []);
       setCimecBlockedSlots(data.cimecBlockedSlots ?? []);
       setEditingBooking(null);
+      setMovingSessionId(null);
+      setAdminModal(null);
       setMessage(data.message ?? "Booking updated.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update.");
@@ -803,10 +1073,6 @@ export default function ViewBookingsPage() {
   }
 
   async function removeBooking(id: string) {
-    if (!window.confirm("Remove this booking?")) {
-      return;
-    }
-
     setIsLoading(true);
     setMessage("");
 
@@ -816,6 +1082,8 @@ export default function ViewBookingsPage() {
       setBlockedSlots(data.blockedSlots ?? []);
       setCimecBlockedSlots(data.cimecBlockedSlots ?? []);
       setEditingBooking((current) => (current?.id === id ? null : current));
+      setBookingToRemove(null);
+      setAdminModal(null);
       setMessage(data.message ?? "Booking removed.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not remove.");
@@ -843,6 +1111,7 @@ export default function ViewBookingsPage() {
       setCimecBlockedSlots(data.cimecBlockedSlots ?? []);
       setBlockDate("");
       setBlockNote("");
+      setAdminModal(null);
       setMessage(data.message ?? "Slot blocked.");
     } catch (error) {
       setMessage(
@@ -872,13 +1141,6 @@ export default function ViewBookingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }
-
-  function updateBlockStudy(tag: StudyTag) {
-    const nextSlotOptions = getSlotOptions(tag);
-
-    setBlockStudy(tag);
-    setBlockSlot(nextSlotOptions[0]);
   }
 
   function downloadShownWeekIcs() {
@@ -948,9 +1210,47 @@ export default function ViewBookingsPage() {
                   const dayEvents = weekEvents.filter(
                     (event) => event.date === date,
                   );
+                  const slotOptionsForStudy = getSlotOptions(studyFilter);
 
                   return (
                     <div className="week-calendar-day" key={date}>
+                      {slotOptionsForStudy.map((slot) => {
+                        const slotKey = `${date}|${slot}`;
+                        const isOccupied = occupiedCalendarSlots.has(slotKey);
+
+                        if (isOccupied) {
+                          return null;
+                        }
+
+                        return (
+                          <button
+                            type="button"
+                            className="calendar-slot-target"
+                            data-blocking={hoverBlockMode}
+                            data-editing={Boolean(editMode && movingSessionId)}
+                            key={slot}
+                            style={getCalendarEventStyle(slot, 0)}
+                            onClick={() => {
+                              if (editMode && movingSessionId && editingBooking) {
+                                moveEditingSession(date, slot);
+                                return;
+                              }
+
+                              if (hoverBlockMode) {
+                                openBlockSlot(date, slot);
+                              }
+                            }}
+                            disabled={
+                              (!hoverBlockMode &&
+                                !(editMode && movingSessionId && editingBooking)) ||
+                              isLoading
+                            }
+                            aria-label={`Use ${formatDisplayDate(date)} at ${slot}`}
+                          >
+                            {hoverBlockMode ? "Block" : "Move here"}
+                          </button>
+                        );
+                      })}
                       {dayEvents.map((event, index) => {
                         const lane = dayEvents
                           .slice(0, index)
@@ -1055,6 +1355,58 @@ export default function ViewBookingsPage() {
 
         {authenticated ? (
           <>
+            <div
+              className="bookings-controls admin-primary-controls"
+              aria-label="Admin filters"
+            >
+              <label>
+                <span>Experiment</span>
+                <select
+                  value={studyFilter}
+                  onChange={(event) =>
+                    setStudyFilter(event.target.value as StudyTag)
+                  }
+                >
+                  <option value="meg-study">MEG experiment</option>
+                  <option value="sensorimotor-study">
+                    Sensorimotor study
+                  </option>
+                  <option value="eye-track-monpath">
+                    MonPath
+                  </option>
+                  <option value="semantic-foraging">
+                    Semantic foraging
+                  </option>
+                </select>
+              </label>
+              <div className="admin-mode-actions">
+                <button
+                  type="button"
+                  className={editMode ? "admin-mode-button-active" : ""}
+                  onClick={() => {
+                    setEditMode((current) => !current);
+                    setHoverBlockMode(false);
+                  }}
+                >
+                  Edit mode
+                </button>
+                <button
+                  type="button"
+                  className={hoverBlockMode ? "admin-mode-button-active" : ""}
+                  onClick={() => {
+                    setHoverBlockMode((current) => !current);
+                    setEditMode(false);
+                    setMovingSessionId(null);
+                  }}
+                >
+                  Hover block
+                </button>
+                <button type="button" onClick={() => openBlockSlot()}>
+                  Block slot
+                </button>
+              </div>
+            </div>
+
             <section
               className="participants-panel"
               aria-labelledby="admin-participants-title"
@@ -1140,11 +1492,25 @@ export default function ViewBookingsPage() {
                                         booking.firstSessionDate,
                                       )}
                                     </strong>
+                                    <p>
+                                      Speaks English:{" "}
+                                      {booking.speaksEnglish === true
+                                        ? "Yes"
+                                        : "No"}
+                                    </p>
+                                    {study.requiresWeekendSessions ? (
+                                      <p>
+                                        Weekend sessions agreed:{" "}
+                                        {booking.weekendSessionsAccepted === true
+                                          ? "Yes"
+                                          : "No"}
+                                      </p>
+                                    ) : null}
                                   </div>
                                   <div className="admin-actions">
                                     <button
                                       type="button"
-                                      onClick={() => setEditingBooking(booking)}
+                                      onClick={() => openEditBooking(booking)}
                                     >
                                       Edit
                                     </button>
@@ -1158,7 +1524,7 @@ export default function ViewBookingsPage() {
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => removeBooking(booking.id)}
+                                      onClick={() => openRemoveBooking(booking)}
                                       disabled={isLoading}
                                     >
                                       Remove
@@ -1221,27 +1587,6 @@ export default function ViewBookingsPage() {
 
               <div className="bookings-controls" aria-label="Calendar filters">
                 <label>
-                  <span>Experiment</span>
-                  <select
-                    value={studyFilter}
-                    onChange={(event) =>
-                      setStudyFilter(event.target.value as StudyFilter)
-                    }
-                  >
-                    <option value="all">All experiments</option>
-                    <option value="meg-study">MEG experiment</option>
-                    <option value="sensorimotor-study">
-                      Sensorimotor study
-                    </option>
-                    <option value="eye-track-monpath">
-                      eye tracking experiment
-                    </option>
-                    <option value="semantic-foraging">
-                      Semantic foraging
-                    </option>
-                  </select>
-                </label>
-                <label>
                   <span>Week date</span>
                   <input
                     type="date"
@@ -1262,72 +1607,44 @@ export default function ViewBookingsPage() {
                 </button>
               </div>
 
-              <form className="blocked-slot-form calendar-block-form" onSubmit={addBlockedSlot}>
-                <label>
-                  <span>Add block</span>
-                  <select
-                    value={blockStudy}
-                    onChange={(event) =>
-                      updateBlockStudy(event.target.value as StudyTag)
-                    }
-                  >
-                    <option value="meg-study">MEG experiment</option>
-                    <option value="sensorimotor-study">
-                      Sensorimotor study
-                    </option>
-                    <option value="eye-track-monpath">
-                      eye tracking experiment
-                    </option>
-                    <option value="semantic-foraging">
-                      Semantic foraging
-                    </option>
-                  </select>
-                </label>
-                <label>
-                  <span>Date</span>
-                  <input
-                    type="date"
-                    value={blockDate}
-                    onChange={(event) => setBlockDate(event.target.value)}
-                    required
-                  />
-                </label>
-                <label>
-                  <span>Slot</span>
-                  <select
-                    value={blockSlot}
-                    onChange={(event) => setBlockSlot(event.target.value)}
-                  >
-                    {getSlotOptions(blockStudy).map((slot) => (
-                      <option value={slot} key={slot}>
-                        {slot}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Note</span>
-                  <input
-                    type="text"
-                    value={blockNote}
-                    onChange={(event) => setBlockNote(event.target.value)}
-                    placeholder="Optional"
-                  />
-                </label>
-                <button type="submit" disabled={isLoading}>
-                  Block slot
-                </button>
-              </form>
+              <p className="admin-mode-hint">
+                {editMode
+                  ? movingSessionId
+                    ? "Edit mode active. Choose an empty slot to move the selected session; occupied and blocked slots are protected."
+                    : "Edit mode active. Open a booking and choose a session to move."
+                  : hoverBlockMode
+                    ? "Hover block active. Empty slots are highlighted and open the block modal."
+                    : "Choose an experiment, then edit bookings or block availability from the focused modal flows."}
+              </p>
 
-              {editingBooking ? (
-                <section className="booking-edit-panel" aria-label="Edit booking">
-                  <div>
-                    <span>
-                      {getStudyConfig(getBookingTag(editingBooking)).title}
-                    </span>
-                    <h3>{editingBooking.name || editingBooking.email}</h3>
+              {renderWeekCalendar(
+                calendarEvents,
+                "No calendar items match the selected filters.",
+              )}
+            </section>
+
+            {adminModal === "edit" && editingBooking ? (
+              <div className="admin-modal-backdrop" role="presentation">
+                <section
+                  className="admin-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="admin-edit-title"
+                >
+                  <div className="admin-modal-header">
+                    <div>
+                      <span>
+                        {getStudyConfig(getBookingTag(editingBooking)).title}
+                      </span>
+                      <h3 id="admin-edit-title">
+                        Edit {editingBooking.name || editingBooking.email}
+                      </h3>
+                    </div>
+                    <button type="button" onClick={closeAdminModal}>
+                      Close
+                    </button>
                   </div>
-                  <div className="booking-edit-grid">
+                  <div className="booking-edit-grid admin-modal-body">
                     <label>
                       <span>Name</span>
                       <input
@@ -1356,6 +1673,19 @@ export default function ViewBookingsPage() {
                         }
                       />
                     </label>
+                    <label className="admin-checkbox-field">
+                      <input
+                        type="checkbox"
+                        checked={editingBooking.speaksEnglish === true}
+                        onChange={(event) =>
+                          updateEditingBooking({
+                            ...editingBooking,
+                            speaksEnglish: event.target.checked,
+                          })
+                        }
+                      />
+                      <span>Speaks English</span>
+                    </label>
                     <label>
                       <span>First session</span>
                       {getBookingTag(editingBooking) === "meg-study" ? (
@@ -1368,7 +1698,7 @@ export default function ViewBookingsPage() {
                               editingBooking.firstSessionDate,
                             )
                           }
-                          note={`Select a Thursday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}.`}
+                          note={`Select a Thursday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestMegFirstSessionDate())}.`}
                         />
                       ) : (
                         <input
@@ -1381,52 +1711,78 @@ export default function ViewBookingsPage() {
                         />
                       )}
                     </label>
-                    {getSessionConfigs(getBookingTag(editingBooking)).map((session) => {
-                      const rowSlotOptions = getSlotOptions(
-                        getBookingTag(editingBooking),
-                      );
+                    {getSessionConfigs(getBookingTag(editingBooking)).map(
+                      (session) => {
+                        const rowSlotOptions = getSlotOptions(
+                          getBookingTag(editingBooking),
+                        );
+                        const selection = editingBooking.selections[session.id];
 
-                      return (
-                        <label key={session.id}>
-                          <span>
-                            {session.title},{" "}
-                            {formatDisplayDate(
-                              editingBooking.selections[session.id].date,
-                            )}
-                          </span>
-                          <select
-                            className="admin-table-input"
-                            value={editingBooking.selections[session.id].slot}
-                            onChange={(event) =>
-                              updateEditingBooking({
-                                ...editingBooking,
-                                selections: {
-                                  ...editingBooking.selections,
-                                  [session.id]: {
-                                    ...editingBooking.selections[session.id],
-                                    slot: event.target.value,
+                        return (
+                          <div className="admin-session-edit-row" key={session.id}>
+                            <div>
+                              <strong>{session.title}</strong>
+                              <span>
+                                {formatDisplayDate(selection.date)},{" "}
+                                {selection.slot}
+                              </span>
+                            </div>
+                            <select
+                              className="admin-table-input"
+                              value={selection.slot}
+                              onChange={(event) =>
+                                updateEditingBooking({
+                                  ...editingBooking,
+                                  selections: {
+                                    ...editingBooking.selections,
+                                    [session.id]: {
+                                      ...selection,
+                                      slot: event.target.value,
+                                    },
                                   },
-                                },
-                              })
-                            }
-                          >
-                            {rowSlotOptions.map((slot) => (
-                              <option value={slot} key={slot}>
-                                {slot}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      );
-                    })}
+                                })
+                              }
+                            >
+                              {rowSlotOptions.map((slot) => (
+                                <option value={slot} key={slot}>
+                                  {slot}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className={
+                                movingSessionId === session.id
+                                  ? "admin-mode-button-active"
+                                  : ""
+                              }
+                              onClick={() => {
+                                setEditMode(true);
+                                setHoverBlockMode(false);
+                                setMovingSessionId(session.id);
+                                setAdminModal(null);
+                              }}
+                            >
+                              Move on calendar
+                            </button>
+                          </div>
+                        );
+                      },
+                    )}
+                    <p className="admin-rule-note">
+                      No overlapping slots are allowed inside{" "}
+                      {getStudyConfig(getBookingTag(editingBooking)).title}.
+                      Occupied, manually blocked, and CIMeC busy slots are not
+                      valid move targets. Server validation is still final.
+                    </p>
                   </div>
-                  <div className="admin-actions">
+                  <div className="admin-modal-footer">
                     <button
                       type="button"
                       onClick={saveBooking}
                       disabled={isLoading}
                     >
-                      Save
+                      Save changes
                     </button>
                     <button
                       type="button"
@@ -1434,18 +1790,140 @@ export default function ViewBookingsPage() {
                     >
                       Generate email
                     </button>
-                    <button type="button" onClick={() => setEditingBooking(null)}>
+                    <button type="button" onClick={closeAdminModal}>
                       Cancel
                     </button>
                   </div>
                 </section>
-              ) : null}
+              </div>
+            ) : null}
 
-              {renderWeekCalendar(
-                calendarEvents,
-                "No calendar items match the selected filters.",
-              )}
-            </section>
+            {adminModal === "remove" && bookingToRemove ? (
+              <div className="admin-modal-backdrop" role="presentation">
+                <section
+                  className="admin-modal admin-modal-narrow"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="admin-remove-title"
+                >
+                  <div className="admin-modal-header">
+                    <div>
+                      <span>
+                        {getStudyConfig(getBookingTag(bookingToRemove)).title}
+                      </span>
+                      <h3 id="admin-remove-title">Remove booking?</h3>
+                    </div>
+                    <button type="button" onClick={closeAdminModal}>
+                      Close
+                    </button>
+                  </div>
+                  <div className="admin-modal-body">
+                    <p className="admin-danger-note">
+                      This removes {bookingToRemove.name || bookingToRemove.email}{" "}
+                      and all sessions for this experiment.
+                    </p>
+                    <div className="participant-session-grid">
+                      {getSessionConfigs(getBookingTag(bookingToRemove)).map(
+                        (session) => {
+                          const selection = bookingToRemove.selections[session.id];
+
+                          return (
+                            <div
+                              className="participant-session-row"
+                              key={session.id}
+                            >
+                              <span>{session.title}</span>
+                              <strong>{formatDisplayDate(selection.date)}</strong>
+                              <em>{selection.day}</em>
+                              <small>{selection.slot}</small>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+                  <div className="admin-modal-footer">
+                    <button
+                      type="button"
+                      onClick={() => removeBooking(bookingToRemove.id)}
+                      disabled={isLoading}
+                    >
+                      Remove booking
+                    </button>
+                    <button type="button" onClick={closeAdminModal}>
+                      Cancel
+                    </button>
+                  </div>
+                </section>
+              </div>
+            ) : null}
+
+            {adminModal === "block" ? (
+              <div className="admin-modal-backdrop" role="presentation">
+                <form
+                  className="admin-modal admin-modal-narrow"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="admin-block-title"
+                  onSubmit={addBlockedSlot}
+                >
+                  <div className="admin-modal-header">
+                    <div>
+                      <span>{getStudyConfig(studyFilter).title}</span>
+                      <h3 id="admin-block-title">Block slot</h3>
+                    </div>
+                    <button type="button" onClick={closeAdminModal}>
+                      Close
+                    </button>
+                  </div>
+                  <div className="admin-modal-body">
+                    <label>
+                      <span>Date</span>
+                      <input
+                        type="date"
+                        value={blockDate}
+                        onChange={(event) => setBlockDate(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <label>
+                      <span>Slot</span>
+                      <select
+                        value={blockSlot}
+                        onChange={(event) => setBlockSlot(event.target.value)}
+                      >
+                        {getSlotOptions(blockStudy).map((slot) => (
+                          <option value={slot} key={slot}>
+                            {slot}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Note</span>
+                      <input
+                        type="text"
+                        value={blockNote}
+                        onChange={(event) => setBlockNote(event.target.value)}
+                        placeholder="Optional"
+                      />
+                    </label>
+                    <p className="admin-rule-note">
+                      Blocks apply only to the selected experiment and cannot be
+                      placed on an existing booking.
+                    </p>
+                  </div>
+                  <div className="admin-modal-footer">
+                    <button type="submit" disabled={isLoading}>
+                      Block slot
+                    </button>
+                    <button type="button" onClick={closeAdminModal}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : null}
           </>
         ) : null}
       </section>

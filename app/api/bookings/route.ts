@@ -5,26 +5,17 @@ import {
   BookingState,
   emptyOccupiedSlotReasons,
   emptyOccupiedSlots,
-  formatDisplayDate,
   getBlockedSlotTag,
   getBookingTag,
-  getDayForDate,
-  getEarliestBookingDate,
-  getLatestBookingDate,
-  getLatestFirstSessionDate,
+  getScheduleRequirement,
+  getSharedLabClashSlotKeys,
   getSessionConfigs,
   getSessionDateForStudy,
-  getSessionDayForStudy,
-  getSlotOptions,
   getStudyConfig,
   getStudyTag,
-  isAllowedEyeTrackingDate,
-  isAllowedSemanticForagingDate,
-  isAllowedSensorimotorFirstSessionDate,
-  isAllowedFirstSessionDate,
-  isSameOrAfterDate,
-  isWithinSameWeek,
-  isWeekdayDate,
+  isAllowedStartDate,
+  isCompleteBooking,
+  isFlexibleDateStudy,
   isValidEmail,
   isValidParticipantName,
   OccupiedSlotReasons,
@@ -32,6 +23,7 @@ import {
   SlotBlockReason,
   slotKey,
   StudyTag,
+  validateSelections,
 } from "@/lib/booking";
 import {
   getStorageErrorMessage,
@@ -47,56 +39,12 @@ type OccupiedSlotData = {
   occupiedSlots: Record<SessionId, string[]>;
 };
 
-function isCompleteBooking(booking: BookingEntry, tag?: StudyTag) {
-  const bookingTag = getBookingTag(booking);
-
-  return Boolean(
-    (!tag || bookingTag === tag) &&
-      booking.id &&
-      booking.email &&
-    booking.firstSessionDate &&
-    booking.selections &&
-    getSessionConfigs(bookingTag).every((session) => {
-      const selection = booking.selections[session.id];
-      return selection?.day && selection?.date && selection?.slot;
-    })
-  );
-}
-
-function isFlexibleDateStudy(tag: StudyTag) {
-  return tag === "sensorimotor-study";
-}
-
-function isAllowedStartDate(firstSessionDate: string, tag: StudyTag) {
-  if (tag === "sensorimotor-study") {
-    return isAllowedSensorimotorFirstSessionDate(firstSessionDate);
-  }
-
-  if (tag === "eye-track-monpath") {
-    return isAllowedEyeTrackingDate(firstSessionDate);
-  }
-
-  if (tag === "semantic-foraging") {
-    return isAllowedSemanticForagingDate(firstSessionDate);
-  }
-
-  return isAllowedFirstSessionDate(firstSessionDate);
-}
-
 function getInvalidBookingMessage(tag: StudyTag) {
-  if (tag === "sensorimotor-study") {
-    return `Enter your name and a valid email, accept the eligibility criteria, choose Session 1 on a Monday or Tuesday between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, keep the remaining sessions on weekdays in that same week, and choose every session slot.`;
-  }
+  const weekendRequirement = getStudyConfig(tag).requiresWeekendSessions
+    ? " agree to the Saturday and Sunday sessions,"
+    : "";
 
-  if (tag === "eye-track-monpath") {
-    return `Enter your name and a valid email, accept the eligibility criteria, choose a Monday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose every session slot.`;
-  }
-
-  if (tag === "semantic-foraging") {
-    return `Enter your name and a valid email, accept the eligibility criteria, choose a weekday first-session date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestBookingDate(8))}, and choose every session slot.`;
-  }
-
-  return `Enter your name and a valid email, accept the eligibility criteria, choose a Thursday date between ${formatDisplayDate(getEarliestBookingDate())} and ${formatDisplayDate(getLatestFirstSessionDate())}, and choose every session slot.`;
+  return `Enter your name and a valid email, accept the eligibility criteria,${weekendRequirement} ${getScheduleRequirement(tag)}, and choose every session slot.`;
 }
 
 function getBookingForEmail(
@@ -216,6 +164,15 @@ function getOccupiedSlots(
     for (const key of getCimecOccupiedSlotKeys(tag, requestedDate)) {
       addOccupiedSlot(session.id, key, "other-researcher");
     }
+
+    for (const key of getSharedLabClashSlotKeys(
+      bookings,
+      tag,
+      requestedDate,
+      excludedBookingId,
+    )) {
+      addOccupiedSlot(session.id, key, "other-researcher");
+    }
   }
 
   return {
@@ -256,68 +213,6 @@ function getSessionDatesForSelections(selections: BookingState, tag: StudyTag) {
 
     return acc;
   }, {} as SessionDateLookup);
-}
-
-function validateSelections(
-  selections: BookingState,
-  firstSessionDate: string,
-  tag: StudyTag,
-) {
-  const slotOptions = getSlotOptions(tag);
-  const studySessions = getSessionConfigs(tag);
-
-  for (const session of studySessions) {
-    const selection = selections?.[session.id];
-    const validSlot = slotOptions.includes(selection?.slot);
-    let validDay = false;
-    let validDate = false;
-
-    if (tag === "sensorimotor-study") {
-      validDay = selection?.day === getDayForDate(selection?.date ?? "");
-      validDate =
-        session.id === "session1"
-          ? isAllowedSensorimotorFirstSessionDate(selection?.date ?? "")
-          : isWithinSameWeek(selection?.date ?? "", selections.session1.date) &&
-            isWeekdayDate(selection?.date ?? "") &&
-            isSameOrAfterDate(
-              selection?.date ?? "",
-              selections[studySessions[studySessions.indexOf(session) - 1].id]
-                .date,
-            );
-    } else {
-      validDay =
-        selection?.day === getSessionDayForStudy(firstSessionDate, session, tag);
-      validDate =
-        selection?.date ===
-        getSessionDateForStudy(firstSessionDate, session, tag);
-    }
-
-    if (!validDay || !validDate || !validSlot) {
-      return `${session.title} has an invalid day, date, or slot.`;
-    }
-  }
-
-  const duplicateSelection = studySessions.find((session, index) =>
-    studySessions.slice(0, index).some((previousSession) => {
-      const current = selections[session.id];
-      const previous = selections[previousSession.id];
-
-      return current.date === previous.date && current.slot === previous.slot;
-    }),
-  );
-
-  if (duplicateSelection) {
-    return `${duplicateSelection.title} uses a date and time already selected for an earlier session.`;
-  }
-
-  if (
-    isFlexibleDateStudy(tag) &&
-    selections.session1.date !== firstSessionDate
-  ) {
-    return "Session 1 date must match the booking start date.";
-  }
-
-  return "";
 }
 
 export async function GET(request: NextRequest) {
@@ -388,6 +283,8 @@ export async function POST(request: NextRequest) {
     const payload = (await request.json()) as {
       email?: string;
       name?: string;
+      speaksEnglish?: boolean;
+      weekendSessionsAccepted?: boolean;
       criteriaAccepted?: boolean;
       tag?: string;
       firstSessionDate?: string;
@@ -398,12 +295,15 @@ export async function POST(request: NextRequest) {
     const name = payload.name?.trim() ?? "";
     const email = payload.email?.trim().toLowerCase() ?? "";
     const firstSessionDate = payload.firstSessionDate ?? "";
+    const speaksEnglish = payload.speaksEnglish === true;
+    const weekendSessionsAccepted = payload.weekendSessionsAccepted === true;
     const selections = payload.selections;
 
     if (
       !isValidParticipantName(name) ||
       !isValidEmail(email) ||
       payload.criteriaAccepted !== true ||
+      (study.requiresWeekendSessions && !weekendSessionsAccepted) ||
       !isAllowedStartDate(firstSessionDate, tag) ||
       !selections
     ) {
@@ -472,6 +372,8 @@ export async function POST(request: NextRequest) {
       tag,
       name,
       email,
+      speaksEnglish,
+      ...(study.requiresWeekendSessions ? { weekendSessionsAccepted } : {}),
       firstSessionDate,
       selections,
       criteriaAcceptedAt: new Date().toISOString(),
@@ -510,103 +412,110 @@ export async function PUT(request: NextRequest) {
       id?: string;
       email?: string;
       name?: string;
+      speaksEnglish?: boolean;
+      weekendSessionsAccepted?: boolean;
       criteriaAccepted?: boolean;
       tag?: string;
       firstSessionDate?: string;
       selections?: BookingState;
     };
-  const tag = getStudyTag(payload.tag);
-  const study = getStudyConfig(tag);
-  const id = payload.id ?? "";
-  const name = payload.name?.trim() ?? "";
-  const email = payload.email?.trim().toLowerCase() ?? "";
-  const firstSessionDate = payload.firstSessionDate ?? "";
-  const selections = payload.selections;
+    const tag = getStudyTag(payload.tag);
+    const study = getStudyConfig(tag);
+    const id = payload.id ?? "";
+    const name = payload.name?.trim() ?? "";
+    const email = payload.email?.trim().toLowerCase() ?? "";
+    const firstSessionDate = payload.firstSessionDate ?? "";
+    const speaksEnglish = payload.speaksEnglish === true;
+    const weekendSessionsAccepted = payload.weekendSessionsAccepted === true;
+    const selections = payload.selections;
 
-  if (
-    !id ||
-    !isValidParticipantName(name) ||
-    !isValidEmail(email) ||
-    payload.criteriaAccepted !== true ||
-    !isAllowedStartDate(firstSessionDate, tag) ||
-    !selections
-  ) {
-    return NextResponse.json(
-      {
-        message: getInvalidBookingMessage(tag),
-      },
-      { status: 400 },
+    if (
+      !id ||
+      !isValidParticipantName(name) ||
+      !isValidEmail(email) ||
+      payload.criteriaAccepted !== true ||
+      (study.requiresWeekendSessions && !weekendSessionsAccepted) ||
+      !isAllowedStartDate(firstSessionDate, tag) ||
+      !selections
+    ) {
+      return NextResponse.json(
+        {
+          message: getInvalidBookingMessage(tag),
+        },
+        { status: 400 },
+      );
+    }
+
+    const validationError = validateSelections(selections, firstSessionDate, tag);
+
+    if (validationError) {
+      return NextResponse.json({ message: validationError }, { status: 400 });
+    }
+
+    const bookings = await readBookings();
+    const blockedSlots = await readBlockedSlots();
+    const bookingIndex = bookings.findIndex(
+      (booking) =>
+        booking.id === id &&
+        getBookingTag(booking) === tag &&
+        booking.email.toLowerCase() === email.toLowerCase(),
     );
-  }
 
-  const validationError = validateSelections(selections, firstSessionDate, tag);
+    if (bookingIndex === -1) {
+      return NextResponse.json(
+        { message: "No booking was found for this email to edit." },
+        { status: 404 },
+      );
+    }
 
-  if (validationError) {
-    return NextResponse.json({ message: validationError }, { status: 400 });
-  }
-
-  const bookings = await readBookings();
-  const blockedSlots = await readBlockedSlots();
-  const bookingIndex = bookings.findIndex(
-    (booking) =>
-      booking.id === id &&
-      getBookingTag(booking) === tag &&
-      booking.email.toLowerCase() === email.toLowerCase(),
-  );
-
-  if (bookingIndex === -1) {
-    return NextResponse.json(
-      { message: "No booking was found for this email to edit." },
-      { status: 404 },
+    const selectedSessionDates = getSessionDatesForSelections(selections, tag);
+    const occupiedSlotData = getOccupiedSlots(
+      bookings,
+      blockedSlots,
+      tag,
+      selectedSessionDates,
+      id,
     );
-  }
-
-  const selectedSessionDates = getSessionDatesForSelections(selections, tag);
-  const occupiedSlotData = getOccupiedSlots(
-    bookings,
-    blockedSlots,
-    tag,
-    selectedSessionDates,
-    id,
-  );
-  const conflict = getSessionConfigs(tag).find((session) =>
-    occupiedSlotData.occupiedSlots[session.id].includes(
-      slotKey(selections[session.id].date, selections[session.id].slot),
-    ),
-  );
-
-  if (conflict) {
-    const conflictSelection = selections[conflict.id];
-
-    return NextResponse.json(
-      {
-        message: `${conflict.title} on ${conflictSelection.day}, ${conflictSelection.date} at ${conflictSelection.slot} is unavailable. Choose another slot.`,
-        ...occupiedSlotData,
-      },
-      { status: 409 },
+    const conflict = getSessionConfigs(tag).find((session) =>
+      occupiedSlotData.occupiedSlots[session.id].includes(
+        slotKey(selections[session.id].date, selections[session.id].slot),
+      ),
     );
-  }
 
-  const booking: BookingEntry = {
-    ...bookings[bookingIndex],
-    tag,
-    name,
-    email,
-    firstSessionDate,
-    selections,
-    criteriaAcceptedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  const updatedBookings = removeExtraBookingsForEmail(
-    [
-      ...bookings.slice(0, bookingIndex),
-      booking,
-      ...bookings.slice(bookingIndex + 1),
-    ],
-    email,
-    tag,
-    booking.id,
-  );
+    if (conflict) {
+      const conflictSelection = selections[conflict.id];
+
+      return NextResponse.json(
+        {
+          message: `${conflict.title} on ${conflictSelection.day}, ${conflictSelection.date} at ${conflictSelection.slot} is unavailable. Choose another slot.`,
+          ...occupiedSlotData,
+        },
+        { status: 409 },
+      );
+    }
+
+    const booking: BookingEntry = {
+      ...bookings[bookingIndex],
+      tag,
+      name,
+      email,
+      speaksEnglish,
+      ...(study.requiresWeekendSessions ? { weekendSessionsAccepted } : {}),
+      firstSessionDate,
+      selections,
+      criteriaAcceptedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const updatedBookings = removeExtraBookingsForEmail(
+      [
+        ...bookings.slice(0, bookingIndex),
+        booking,
+        ...bookings.slice(bookingIndex + 1),
+      ],
+      email,
+      tag,
+      booking.id,
+    );
 
     await writeBookings(updatedBookings);
 
