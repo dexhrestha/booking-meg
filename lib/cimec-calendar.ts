@@ -49,10 +49,9 @@ export type CimecBlockedSlotEntry = BlockedSlotEntry & {
 const cimecCacheTtlMs = 60_000;
 
 const mentalSimulationPattern = /mental\s+simulation/i;
-const eyelinkResourcePattern = /\beyelink\b/i;
 const megResourcePattern = /\bmeg\b/i;
 
-type CimecCalendarName = "eyelink" | "meg";
+type CimecCalendarName = "meg";
 
 type CimecCalendarRule = {
   calendars: CimecCalendarName[];
@@ -60,12 +59,11 @@ type CimecCalendarRule = {
 };
 
 const cimecCalendarRules: Record<StudyTag, CimecCalendarRule[]> = {
-  "meg-study": [
-    { calendars: ["meg"], weekdays: [2] },
-    { calendars: ["eyelink"] },
-  ],
-  "sensorimotor-study": [{ calendars: ["eyelink"] }],
-  "eye-track-monpath": [{ calendars: ["eyelink"] }],
+  // Eyelink bookings never block slots; only the MEG resource does, and only
+  // for Tuesday MEG sessions.
+  "meg-study": [{ calendars: ["meg"], weekdays: [2] }],
+  "sensorimotor-study": [],
+  "eye-track-monpath": [],
   "semantic-foraging": [],
 };
 
@@ -161,16 +159,10 @@ function getDateWeekday(date: string) {
 
 function isCalendarMatch(
   resource: CimecCalendarResource,
-  calendar: CimecCalendarName,
+  _calendar: CimecCalendarName,
   booking?: CimecCalendarBooking,
 ) {
-  const resourceText = getResourceSearchText(resource, booking);
-
-  if (calendar === "eyelink") {
-    return eyelinkResourcePattern.test(resourceText);
-  }
-
-  return megResourcePattern.test(resourceText);
+  return megResourcePattern.test(getResourceSearchText(resource, booking));
 }
 
 function isResourceRelevantForStudy(

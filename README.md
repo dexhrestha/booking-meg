@@ -101,10 +101,8 @@ The ICS exports include participant bookings and manual blocked slots only.
 External CIMeC calendar blocks are intentionally excluded from the downloads.
 
 External CIMeC busy slots are mapped per experiment in
-`lib/cimec-calendar.ts`. For the MEG experiment, Tuesday sessions are blocked
-from MEG calendar resources, while the other session days are blocked from
-Eyelink resources. The sensorimotor study currently uses Eyelink resources for
-all sessions. CIMeC files may be individual resource exports or combined
+`lib/cimec-calendar.ts`. Only the MEG resource blocks slots, and only for
+Tuesday MEG sessions; Eyelink bookings never block any experiment. CIMeC files may be individual resource exports or combined
 exports with a top-level `calendars` array. Deployed environments read
 `cimec_calendar*.json` objects from Vercel Blob; local development reads them
 from `data/`.
