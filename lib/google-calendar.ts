@@ -43,6 +43,32 @@ type BusyRange = {
   endMinutes: number;
 };
 
+type GoogleCalendarRule = {
+  calendarId: string;
+  // Days of the week (0 = Sunday) this calendar covers. A rule without
+  // weekdays covers every day not claimed by another rule for the study.
+  weekdays?: number[];
+};
+
+// Per-study calendars. Bookings for a session are written to the calendar
+// matching its date, and other events in that calendar block the same slots.
+// Studies without rules fall back to GOOGLE_BOOKING_CALENDAR_ID.
+const studyCalendarRules: Partial<Record<StudyTag, GoogleCalendarRule[]>> = {
+  "meg-study": [
+    {
+      // MentalSim MEG calendar
+      calendarId:
+        "c_d6683293d4743a241373794136c47a86c726bfb9c204c35f2b12d036d80393f9@group.calendar.google.com",
+      weekdays: [2],
+    },
+    {
+      // MentalSim Behavior Calendar
+      calendarId:
+        "c_920baad4039a5e71dd2312b8d75a3a4871cfc4cde8522807515da94f8e16ac13@group.calendar.google.com",
+    },
+  ],
+};
+
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 const busyCache = new Map<string, { ranges: BusyRange[]; expiresAt: number }>();
 
@@ -65,12 +91,39 @@ function hasGoogleCredentials() {
   return Boolean(config.clientId && config.clientSecret && config.refreshToken);
 }
 
-export function isGoogleBookingSyncEnabled() {
-  return hasGoogleCredentials() && Boolean(getGoogleConfig().bookingCalendarId);
+function getDateWeekday(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }
 
-export function isGoogleBusyBlockingEnabled() {
-  return hasGoogleCredentials() && getGoogleConfig().busyCalendarIds.length > 0;
+function getStudyRuleCalendarId(tag: StudyTag, date: string) {
+  const rules = studyCalendarRules[tag] ?? [];
+  const weekday = getDateWeekday(date);
+  const rule =
+    rules.find((item) => item.weekdays?.includes(weekday)) ??
+    rules.find((item) => !item.weekdays);
+
+  return rule?.calendarId ?? null;
+}
+
+function getBookingCalendarId(tag: StudyTag, date: string) {
+  return (
+    getStudyRuleCalendarId(tag, date) ||
+    getGoogleConfig().bookingCalendarId ||
+    null
+  );
+}
+
+function getBusyCalendarIds(tag: StudyTag, date: string) {
+  const ruleCalendarId = getStudyRuleCalendarId(tag, date);
+
+  return [
+    ...new Set([
+      ...getGoogleConfig().busyCalendarIds,
+      ...(ruleCalendarId ? [ruleCalendarId] : []),
+    ]),
+  ];
 }
 
 async function getAccessToken() {
@@ -195,10 +248,10 @@ function buildSessionEvent(
 }
 
 async function upsertSessionEvent(
+  calendarId: string,
   booking: BookingEntry,
   session: { id: string; title: string },
 ) {
-  const calendarId = getGoogleConfig().bookingCalendarId;
   const event = buildSessionEvent(booking, session);
   const query = { sendUpdates: "all" };
   // Updating also restores a previously cancelled event with the same ID,
@@ -222,8 +275,30 @@ async function upsertSessionEvent(
   await assertOk(insertResponse, "event insert");
 }
 
-async function deleteSessionEvent(bookingId: string, sessionId: string) {
-  const calendarId = getGoogleConfig().bookingCalendarId;
+async function moveSessionEvent(
+  fromCalendarId: string,
+  toCalendarId: string,
+  bookingId: string,
+  sessionId: string,
+) {
+  const response = await calendarRequest(
+    "POST",
+    `${calendarPath(fromCalendarId)}/${getBookingEventId(bookingId, sessionId)}/move`,
+    { query: { destination: toCalendarId, sendUpdates: "none" } },
+  );
+
+  if (response.status === 404 || response.status === 410) {
+    return;
+  }
+
+  await assertOk(response, "event move");
+}
+
+async function deleteSessionEvent(
+  calendarId: string,
+  bookingId: string,
+  sessionId: string,
+) {
   const response = await calendarRequest(
     "DELETE",
     `${calendarPath(calendarId)}/${getBookingEventId(bookingId, sessionId)}`,
@@ -255,7 +330,7 @@ function isSameSessionEvent(
 }
 
 /**
- * Mirrors a booking change to the Google booking calendar and emails the
+ * Mirrors a booking change to the study's Google calendar and emails the
  * participant through Google Calendar invites. Pass `previous` as null for a
  * new booking and `next` as null for a removed booking. Only sessions that
  * changed are touched, so participants are not re-notified for unchanged ones.
@@ -264,7 +339,7 @@ export async function syncBookingToGoogleCalendar(
   previous: BookingEntry | null,
   next: BookingEntry | null,
 ) {
-  if (!isGoogleBookingSyncEnabled()) {
+  if (!hasGoogleCredentials()) {
     return;
   }
 
@@ -278,17 +353,55 @@ export async function syncBookingToGoogleCalendar(
   const nextSessionIds = new Set(nextSessions.map((session) => session.id));
   const tasks: Promise<void>[] = [];
 
+  function getSessionCalendarId(
+    booking: BookingEntry | null,
+    sessionId: keyof BookingEntry["selections"],
+  ) {
+    const date = booking?.selections?.[sessionId]?.date;
+
+    return booking && date
+      ? getBookingCalendarId(getBookingTag(booking), date)
+      : null;
+  }
+
   for (const session of nextSessions) {
     if (previous && next && isSameSessionEvent(previous, next, session.id)) {
       continue;
     }
 
-    tasks.push(upsertSessionEvent(next!, session));
+    const previousCalendarId = getSessionCalendarId(previous, session.id);
+    const nextCalendarId = getSessionCalendarId(next, session.id);
+
+    tasks.push(
+      (async () => {
+        if (!nextCalendarId) {
+          if (previousCalendarId) {
+            await deleteSessionEvent(previousCalendarId, bookingId, session.id);
+          }
+          return;
+        }
+
+        // Moving keeps a single invite for the participant; the update below
+        // then notifies them of the new time.
+        if (previousCalendarId && previousCalendarId !== nextCalendarId) {
+          await moveSessionEvent(
+            previousCalendarId,
+            nextCalendarId,
+            bookingId,
+            session.id,
+          );
+        }
+
+        await upsertSessionEvent(nextCalendarId, next!, session);
+      })(),
+    );
   }
 
   for (const session of sessionConfigs) {
-    if (!nextSessionIds.has(session.id)) {
-      tasks.push(deleteSessionEvent(bookingId, session.id));
+    const previousCalendarId = getSessionCalendarId(previous, session.id);
+
+    if (!nextSessionIds.has(session.id) && previousCalendarId) {
+      tasks.push(deleteSessionEvent(previousCalendarId, bookingId, session.id));
     }
   }
 
@@ -410,20 +523,19 @@ function getRangeOnDate(range: BusyRange, date: string): MinuteRange | null {
   return endMinutes > startMinutes ? { startMinutes, endMinutes } : null;
 }
 
-async function getBusyRanges(startDate: string, endDate: string) {
-  const cacheKey = `${startDate}:${endDate}`;
+async function getBusyRanges(
+  calendarId: string,
+  startDate: string,
+  endDate: string,
+) {
+  const cacheKey = `${calendarId}:${startDate}:${endDate}`;
   const cached = busyCache.get(cacheKey);
 
   if (cached && cached.expiresAt > Date.now()) {
     return cached.ranges;
   }
 
-  const results = await Promise.all(
-    getGoogleConfig().busyCalendarIds.map((calendarId) =>
-      listBusyRanges(calendarId, startDate, endDate),
-    ),
-  );
-  const ranges = results.flat();
+  const ranges = await listBusyRanges(calendarId, startDate, endDate);
 
   busyCache.set(cacheKey, { ranges, expiresAt: Date.now() + busyCacheTtlMs });
 
@@ -438,18 +550,34 @@ async function getBusyRanges(startDate: string, endDate: string) {
 export async function getGoogleBusySlotKeys(tag: StudyTag, dates: string[]) {
   const validDates = dates.filter(Boolean).toSorted();
 
-  if (!isGoogleBusyBlockingEnabled() || validDates.length === 0) {
+  if (!hasGoogleCredentials() || validDates.length === 0) {
     return [];
   }
 
   try {
-    const ranges = await getBusyRanges(
-      validDates[0],
-      validDates[validDates.length - 1],
+    const startDate = validDates[0];
+    const endDate = validDates[validDates.length - 1];
+    const calendarIds = [
+      ...new Set(validDates.flatMap((date) => getBusyCalendarIds(tag, date))),
+    ];
+    const rangesByCalendar = new Map(
+      await Promise.all(
+        calendarIds.map(
+          async (calendarId) =>
+            [
+              calendarId,
+              await getBusyRanges(calendarId, startDate, endDate),
+            ] as const,
+        ),
+      ),
     );
     const occupied = new Set<string>();
 
     for (const date of validDates) {
+      const ranges = getBusyCalendarIds(tag, date).flatMap(
+        (calendarId) => rangesByCalendar.get(calendarId) ?? [],
+      );
+
       for (const slot of getSlotOptions(tag)) {
         const slotRange = parseSlotRange(slot);
 

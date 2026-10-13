@@ -110,20 +110,28 @@ exports with a top-level `calendars` array.
 ## Google Calendar invites and busy times
 
 When configured, every participant booking creates one Google Calendar event
-per session on a dedicated booking calendar, with the participant as a guest.
-Google emails them the invite. Participant or admin edits update only the
-changed sessions, and removed bookings cancel their events. Events in the
-researcher's own calendars that are not marked "Free" block overlapping slots
-for every study. If Google is unreachable, bookings still save and slots stay
-bookable; failures are logged on the server.
+per session, with the participant as a guest. Google emails them the invite.
+Participant or admin edits update only the changed sessions, and removed
+bookings cancel their events.
+
+Each study can map its sessions to calendars by weekday in
+`studyCalendarRules` in `lib/google-calendar.ts`. For the MEG experiment,
+Tuesday sessions use the MentalSim MEG calendar and other days use the
+MentalSim Behavior calendar. Bookings are written to the matching calendar, and
+any other event in it that is not marked "Free" blocks the overlapping slots.
+Studies without rules write to `GOOGLE_BOOKING_CALENDAR_ID`, if set. Calendars
+in `GOOGLE_BUSY_CALENDAR_IDS` block slots for every study.
+
+If Google is unreachable, bookings still save and slots stay bookable; failures
+are logged on the server.
 
 1. In Google Cloud Console (signed in with the account that will send the
    invites), create a project, enable the Google Calendar API, configure the
    OAuth consent screen (use "Internal" for a Workspace account, otherwise set
    the publishing status to "In production" so the token does not expire after
    7 days), and create an OAuth client of type "Desktop app".
-2. In Google Calendar, create a separate calendar for bookings and copy its
-   Calendar ID from its settings.
+2. Copy each calendar's ID from Google Calendar (Settings for my calendars →
+   the calendar → Integrate calendar) into `studyCalendarRules`.
 3. Run the one-time authorization and copy the printed refresh token:
 
 ```bash
@@ -136,13 +144,10 @@ GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... npm run google:auth
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GOOGLE_REFRESH_TOKEN=...
+# Optional:
 GOOGLE_BOOKING_CALENDAR_ID=...@group.calendar.google.com
 GOOGLE_BUSY_CALENDAR_IDS=primary
 ```
-
-`GOOGLE_BOOKING_CALENDAR_ID` enables invites; `GOOGLE_BUSY_CALENDAR_IDS`
-(comma-separated) enables busy-time blocking. Either can be left unset. Do not
-list the booking calendar as a busy calendar.
 
 ## Test Vercel Blob
 
