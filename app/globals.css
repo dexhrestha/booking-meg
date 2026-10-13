@@ -1628,8 +1628,8 @@ select {
 .calendar-event {
   position: absolute;
   top: var(--event-top);
-  left: calc(6px + (var(--event-lane) * 10px));
-  right: 6px;
+  left: var(--event-left, 6px);
+  right: var(--event-right, 6px);
   min-height: 42px;
   height: var(--event-height);
   overflow: hidden;
@@ -1765,6 +1765,40 @@ select {
 .calendar-event-cimec-block {
   border-color: rgba(87, 101, 120, 0.35);
   background: #eef2f7;
+}
+
+/* A block sharing its slot with a booking: a striped strip that expands over
+   the booking only while hovered or focused. */
+.calendar-event-strip {
+  padding: 0;
+  box-shadow: none;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 4px,
+    rgba(87, 101, 120, 0.18) 4px,
+    rgba(87, 101, 120, 0.18) 8px
+  );
+}
+
+.calendar-event-strip > * {
+  visibility: hidden;
+}
+
+.calendar-event-strip:hover,
+.calendar-event-strip:focus-within,
+.calendar-event-strip:focus {
+  z-index: 4;
+  left: 6px;
+  padding: 7px 8px;
+  box-shadow: 0 8px 18px rgba(24, 42, 36, 0.1);
+  background-image: none;
+}
+
+.calendar-event-strip:hover > *,
+.calendar-event-strip:focus-within > *,
+.calendar-event-strip:focus > * {
+  visibility: visible;
 }
 
 .booking-edit-panel {

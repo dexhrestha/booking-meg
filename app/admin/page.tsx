@@ -260,7 +260,50 @@ function parseSlotRange(slot: string) {
   return { start, end, startMinutes, endMinutes };
 }
 
-function getCalendarEventStyle(slot: string, lane: number) {
+type CalendarEventPlacement = { left: string; right: string };
+
+const fullWidthPlacement: CalendarEventPlacement = { left: "6px", right: "6px" };
+const blockStripWidth = 22;
+
+// Splits the column evenly among `count` items, leaving `reserve` px free on
+// the right for block strips.
+function getSplitPlacement(index: number, count: number, reserve = 0) {
+  const available = `(100% - ${12 + reserve}px)`;
+
+  return {
+    left: `calc(6px + ${available} * ${index / count})`,
+    right: `calc(${6 + reserve}px + ${available} * ${(count - 1 - index) / count})`,
+  } satisfies CalendarEventPlacement;
+}
+
+// Bookings share the slot width; blocks in the same slot as a booking shrink
+// to a strip on the right so they never cover the booking.
+function getCalendarEventPlacement(event: CalendarEvent, slotEvents: CalendarEvent[]) {
+  const slotBookings = slotEvents.filter((item) => item.variant === "booking");
+  const slotBlocks = slotEvents.filter((item) => item.variant !== "booking");
+
+  if (event.variant === "booking") {
+    return getSplitPlacement(
+      slotBookings.indexOf(event),
+      slotBookings.length,
+      slotBlocks.length > 0 ? blockStripWidth + 4 : 0,
+    );
+  }
+
+  if (slotBookings.length > 0) {
+    return {
+      left: `calc(100% - ${6 + blockStripWidth}px)`,
+      right: "6px",
+    } satisfies CalendarEventPlacement;
+  }
+
+  return getSplitPlacement(slotBlocks.indexOf(event), slotBlocks.length);
+}
+
+function getCalendarEventStyle(
+  slot: string,
+  placement: CalendarEventPlacement = fullWidthPlacement,
+) {
   const range = parseSlotRange(slot);
 
   if (!range) {
@@ -282,7 +325,8 @@ function getCalendarEventStyle(slot: string, lane: number) {
   return {
     "--event-top": `${Math.max(0, top)}%`,
     "--event-height": `${Math.max(6, height)}%`,
-    "--event-lane": lane,
+    "--event-left": placement.left,
+    "--event-right": placement.right,
   } as CSSProperties;
 }
 
@@ -1229,7 +1273,7 @@ export default function ViewBookingsPage() {
                             data-blocking={hoverBlockMode}
                             data-editing={Boolean(editMode && movingSessionId)}
                             key={slot}
-                            style={getCalendarEventStyle(slot, 0)}
+                            style={getCalendarEventStyle(slot)}
                             onClick={() => {
                               if (editMode && movingSessionId && editingBooking) {
                                 moveEditingSession(date, slot);
@@ -1251,13 +1295,13 @@ export default function ViewBookingsPage() {
                           </button>
                         );
                       })}
-                      {dayEvents.map((event, index) => {
-                        const lane = dayEvents
-                          .slice(0, index)
-                          .filter(
-                            (previousEvent) =>
-                              previousEvent.slot === event.slot,
-                          ).length;
+                      {dayEvents.map((event) => {
+                        const slotEvents = dayEvents.filter(
+                          (item) => item.slot === event.slot,
+                        );
+                        const isBlockStrip =
+                          event.variant !== "booking" &&
+                          slotEvents.some((item) => item.variant === "booking");
                         const timeRange = parseSlotRange(event.slot);
                         const timeLabel =
                           event.timeLabel ??
@@ -1267,9 +1311,22 @@ export default function ViewBookingsPage() {
 
                         return (
                           <article
-                            className={`calendar-event calendar-event-${event.variant}`}
+                            className={`calendar-event calendar-event-${event.variant}${
+                              isBlockStrip ? " calendar-event-strip" : ""
+                            }`}
                             key={event.id}
-                            style={getCalendarEventStyle(event.slot, lane)}
+                            style={getCalendarEventStyle(
+                              event.slot,
+                              getCalendarEventPlacement(event, slotEvents),
+                            )}
+                            title={
+                              isBlockStrip
+                                ? [event.title, event.subtitle, event.timeLabel]
+                                    .filter(Boolean)
+                                    .join(" - ")
+                                : undefined
+                            }
+                            tabIndex={isBlockStrip ? 0 : undefined}
                           >
                             <div>
                               <strong>{event.title}</strong>
