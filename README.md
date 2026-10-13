@@ -116,16 +116,28 @@ per session, with the participant as a guest. Google emails them the invite.
 Participant or admin edits update only the changed sessions, and removed
 bookings cancel their events.
 
-Each study can map its sessions to calendars by weekday in
-`studyCalendarRules` in `lib/google-calendar.ts`. For the MEG experiment,
-Tuesday sessions use the MentalSim MEG calendar and other days use the
-MentalSim Behavior calendar. Bookings are written to the matching calendar, and
-any other event in it that is not marked "Free" blocks the overlapping slots.
-Manual blocks from `/admin` are ignored for studies with calendar rules; add a
-busy event to the Google calendar instead. Event titles, locations and the
-researcher guest list are set at the top of `lib/google-calendar.ts`.
-Studies without rules write to `GOOGLE_BOOKING_CALENDAR_ID`, if set. Calendars
-in `GOOGLE_BUSY_CALENDAR_IDS` block slots for every study.
+Each study with its own calendars is configured in `studyGoogleCalendars` in
+`lib/google-calendar.ts`: which calendar each weekday uses, the event location,
+and the environment variable holding the refresh token of the account that
+organizes the invites (the participant is the only guest).
+
+- MEG experiment: organized by `GOOGLE_REFRESH_TOKEN`. Tuesday sessions use the
+  MentalSim MEG calendar, other days the MentalSim Behavior calendar.
+- MonPath: organized by `GOOGLE_REFRESH_TOKEN_MONPATH` (the experimenter's
+  account), using the MonPath calendar on every day.
+
+Bookings are written to the matching calendar, and any other event in it that
+is not marked "Free" blocks the overlapping slots. Until a study's token is
+set, it sends no invites and keeps using manual `/admin` blocks; once set,
+manual blocks are ignored for it. Studies without an entry write to
+`GOOGLE_BOOKING_CALENDAR_ID`, if set. Calendars in `GOOGLE_BUSY_CALENDAR_IDS`
+block slots for every study.
+
+To authorize another account (for example the MonPath experimenter), add it as
+a test user on the OAuth consent screen if the app is still in testing, run
+`node --env-file=.env.local scripts/google-auth.mjs`, and have that person open
+the printed link on the same machine and sign in. Store the printed token in the
+study's environment variable.
 
 If Google is unreachable, bookings still save and slots stay bookable; failures
 are logged on the server.
@@ -136,7 +148,7 @@ are logged on the server.
    the publishing status to "In production" so the token does not expire after
    7 days), and create an OAuth client of type "Desktop app".
 2. Copy each calendar's ID from Google Calendar (Settings for my calendars →
-   the calendar → Integrate calendar) into `studyCalendarRules`.
+   the calendar → Integrate calendar) into `studyGoogleCalendars`.
 3. Run the one-time authorization and copy the printed refresh token:
 
 ```bash
