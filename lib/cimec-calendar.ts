@@ -1,5 +1,3 @@
-import { readFileSync, readdirSync } from "fs";
-import path from "path";
 import {
   BlockedSlotEntry,
   getSlotOptions,
@@ -10,6 +8,7 @@ import {
   studyConfigs,
   StudyTag,
 } from "@/lib/booking";
+import { readCimecCalendarExports } from "@/lib/bookings-store";
 
 type CimecCalendarBooking = {
   date?: string;
@@ -47,7 +46,7 @@ export type CimecBlockedSlotEntry = BlockedSlotEntry & {
   timeRange: string;
 };
 
-const cimecCalendarFilePattern = /^cimec_calendar.*\.json$/i;
+const cimecCacheTtlMs = 60_000;
 
 const mentalSimulationPattern = /mental\s+simulation/i;
 const eyelinkResourcePattern = /\beyelink\b/i;
@@ -76,34 +75,40 @@ function isCimecCalendarCollection(
   return !Array.isArray(exportData) && "calendars" in exportData;
 }
 
-function readCimecCalendarResources() {
-  const dataDirectory = path.join(process.cwd(), "data");
+let cimecResourcesCache: {
+  expiresAt: number;
+  resources: Promise<CimecCalendarResource[]>;
+} | null = null;
 
-  try {
-    return readdirSync(dataDirectory)
-      .filter((fileName) => cimecCalendarFilePattern.test(fileName))
-      .sort()
-      .flatMap((fileName) => {
-        const filePath = path.join(dataDirectory, fileName);
-        const parsed = JSON.parse(
-          readFileSync(filePath, "utf8"),
-        ) as CimecCalendarExport;
+async function loadCimecCalendarResources() {
+  const exports = (await readCimecCalendarExports()) as CimecCalendarExport[];
 
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-
-        return isCimecCalendarCollection(parsed)
-          ? (parsed.calendars ?? [])
-          : [parsed];
-      });
-  } catch (error: any) {
-    if (error?.code === "ENOENT") {
-      return [];
+  return exports.flatMap((parsed) => {
+    if (Array.isArray(parsed)) {
+      return parsed;
     }
 
-    throw error;
+    return isCimecCalendarCollection(parsed)
+      ? (parsed.calendars ?? [])
+      : [parsed];
+  });
+}
+
+function readCimecCalendarResources() {
+  if (!cimecResourcesCache || cimecResourcesCache.expiresAt <= Date.now()) {
+    const resources = loadCimecCalendarResources();
+
+    cimecResourcesCache = {
+      expiresAt: Date.now() + cimecCacheTtlMs,
+      resources,
+    };
+    // Retry on the next request instead of caching a failure.
+    resources.catch(() => {
+      cimecResourcesCache = null;
+    });
   }
+
+  return cimecResourcesCache.resources;
 }
 
 function hasMentalSimulationDetails(booking: CimecCalendarBooking) {
@@ -194,11 +199,11 @@ function isResourceRelevantForStudy(
   );
 }
 
-export function getCimecOccupiedSlotKeys(tag: StudyTag, date: string) {
+export async function getCimecOccupiedSlotKeys(tag: StudyTag, date: string) {
   const occupied = new Set<string>();
   const slotOptions = getSlotOptions(tag);
 
-  for (const { booking, resource } of readCimecCalendarResources()
+  for (const { booking, resource } of (await readCimecCalendarResources())
     .flatMap((resource) =>
       (resource.bookings ?? []).map((booking: CimecCalendarBooking) => ({
         booking,
@@ -234,10 +239,10 @@ export function getCimecOccupiedSlotKeys(tag: StudyTag, date: string) {
   return [...occupied];
 }
 
-export function getCimecBlockedSlots() {
+export async function getCimecBlockedSlots() {
   const blockedSlots = new Map<string, CimecBlockedSlotEntry>();
 
-  for (const resource of readCimecCalendarResources()) {
+  for (const resource of await readCimecCalendarResources()) {
     const sourceLabel =
       resource.resource?.label ??
       resource.resource?.value ??

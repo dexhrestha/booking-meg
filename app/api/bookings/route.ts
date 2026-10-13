@@ -34,6 +34,7 @@ import {
 import { getCimecOccupiedSlotKeys } from "@/lib/cimec-calendar";
 import {
   getGoogleBusySlotKeys,
+  studyUsesGoogleCalendars,
   syncBookingToGoogleCalendar,
 } from "@/lib/google-calendar";
 
@@ -141,7 +142,10 @@ async function getOccupiedSlots(
   }
 
   for (const blockedSlot of blockedSlots) {
-    if (getBlockedSlotTag(blockedSlot) !== tag) {
+    if (
+      getBlockedSlotTag(blockedSlot) !== tag ||
+      studyUsesGoogleCalendars(tag)
+    ) {
       continue;
     }
 
@@ -176,7 +180,7 @@ async function getOccupiedSlots(
       }
     }
 
-    for (const key of getCimecOccupiedSlotKeys(tag, requestedDate)) {
+    for (const key of await getCimecOccupiedSlotKeys(tag, requestedDate)) {
       addOccupiedSlot(session.id, key, "other-researcher");
     }
 

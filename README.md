@@ -105,7 +105,9 @@ External CIMeC busy slots are mapped per experiment in
 from MEG calendar resources, while the other session days are blocked from
 Eyelink resources. The sensorimotor study currently uses Eyelink resources for
 all sessions. CIMeC files may be individual resource exports or combined
-exports with a top-level `calendars` array.
+exports with a top-level `calendars` array. Deployed environments read
+`cimec_calendar*.json` objects from Vercel Blob; local development reads them
+from `data/`.
 
 ## Google Calendar invites and busy times
 
@@ -119,6 +121,9 @@ Each study can map its sessions to calendars by weekday in
 Tuesday sessions use the MentalSim MEG calendar and other days use the
 MentalSim Behavior calendar. Bookings are written to the matching calendar, and
 any other event in it that is not marked "Free" blocks the overlapping slots.
+Manual blocks from `/admin` are ignored for studies with calendar rules; add a
+busy event to the Google calendar instead. Event titles, locations and the
+researcher guest list are set at the top of `lib/google-calendar.ts`.
 Studies without rules write to `GOOGLE_BOOKING_CALENDAR_ID`, if set. Calendars
 in `GOOGLE_BUSY_CALENDAR_IDS` block slots for every study.
 

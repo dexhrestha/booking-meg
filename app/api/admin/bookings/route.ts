@@ -27,7 +27,10 @@ import {
   writeBookings,
 } from "@/lib/bookings-store";
 import { getCimecBlockedSlots } from "@/lib/cimec-calendar";
-import { syncBookingToGoogleCalendar } from "@/lib/google-calendar";
+import {
+  studyUsesGoogleCalendars,
+  syncBookingToGoogleCalendar,
+} from "@/lib/google-calendar";
 import {
   authorizeAdminRequest,
   createAdminSessionToken,
@@ -48,7 +51,7 @@ function isCompleteBlockedSlot(blockedSlot: BlockedSlotEntry) {
   );
 }
 
-function getAdminPayload(
+async function getAdminPayload(
   bookings: BookingEntry[],
   blockedSlots: BlockedSlotEntry[],
 ) {
@@ -57,7 +60,7 @@ function getAdminPayload(
     blockedSlots: blockedSlots.filter((blockedSlot) =>
       isCompleteBlockedSlot(blockedSlot),
     ),
-    cimecBlockedSlots: getCimecBlockedSlots(),
+    cimecBlockedSlots: await getCimecBlockedSlots(),
   };
 }
 
@@ -73,7 +76,7 @@ export async function GET(request: NextRequest) {
     const blockedSlots = await readBlockedSlots();
 
     return NextResponse.json({
-      ...getAdminPayload(bookings, blockedSlots),
+      ...await getAdminPayload(bookings, blockedSlots),
       adminSessionToken:
         auth.method === "totp" ? createAdminSessionToken() : undefined,
     });
@@ -108,6 +111,16 @@ export async function POST(request: NextRequest) {
     if (!input || !isValidIsoDate(date) || !getSlotOptions(tag).includes(slot)) {
       return NextResponse.json(
         { message: "Choose a study, date, and valid slot to block." },
+        { status: 400 },
+      );
+    }
+
+    if (studyUsesGoogleCalendars(tag)) {
+      return NextResponse.json(
+        {
+          message:
+            "This study's slots are blocked through its Google calendars. Add a busy event there instead.",
+        },
         { status: 400 },
       );
     }
@@ -160,7 +173,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message: "Slot blocked.",
-        ...getAdminPayload(bookings, updatedBlockedSlots),
+        ...await getAdminPayload(bookings, updatedBlockedSlots),
       },
       { status: 201 },
     );
@@ -303,6 +316,7 @@ export async function PUT(request: NextRequest) {
   const blockedConflict = blockedSlots.find(
     (blockedSlot) =>
       getBlockedSlotTag(blockedSlot) === tag &&
+      !studyUsesGoogleCalendars(tag) &&
       getSessionConfigs(tag).some((session) => {
         const selection = booking.selections[session.id];
 
@@ -345,7 +359,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       message: "Booking updated.",
-      ...getAdminPayload(updatedBookings, blockedSlots),
+      ...await getAdminPayload(updatedBookings, blockedSlots),
     });
   } catch (error) {
     return NextResponse.json(
@@ -400,7 +414,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       message: blockedSlotId ? "Blocked slot removed." : "Booking removed.",
-      ...getAdminPayload(updatedBookings, updatedBlockedSlots),
+      ...await getAdminPayload(updatedBookings, updatedBlockedSlots),
     });
   } catch (error) {
     return NextResponse.json(

@@ -69,6 +69,14 @@ const studyCalendarRules: Partial<Record<StudyTag, GoogleCalendarRule[]>> = {
   ],
 };
 
+// Added as a guest to every booking event.
+const researcherGuestEmails = ["dipesh.shrestha@unitn.it"];
+
+// Location shown on booking events for each study.
+const studyEventLocations: Partial<Record<StudyTag, string>> = {
+  "meg-study": "https://share.google/UxmSrofWUn4Taz2LV",
+};
+
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 const busyCache = new Map<string, { ranges: BusyRange[]; expiresAt: number }>();
 
@@ -89,6 +97,14 @@ function hasGoogleCredentials() {
   const config = getGoogleConfig();
 
   return Boolean(config.clientId && config.clientSecret && config.refreshToken);
+}
+
+/**
+ * Studies with Google calendars manage blocked time there, so manual admin
+ * blocks are ignored for them.
+ */
+export function studyUsesGoogleCalendars(tag: StudyTag) {
+  return Boolean(studyCalendarRules[tag]?.length);
 }
 
 function getDateWeekday(date: string) {
@@ -214,20 +230,21 @@ function buildSessionEvent(
   const selection = booking.selections[session.id as keyof typeof booking.selections];
   const [start, end] = selection.slot.split(" - ").map((value) => value.trim());
   const participant = booking.name || booking.email;
+  const location = studyEventLocations[tag];
 
   return {
     id: getBookingEventId(booking.id, session.id),
     status: "confirmed",
-    summary: `${study.title}: ${session.title} - ${participant}`,
+    summary: `${study.title}, ${session.title}: ${participant}`,
+    ...(location ? { location } : {}),
     description: [
-      `Experiment: ${study.title}`,
-      `Session: ${session.title}`,
-      `Date: ${formatDisplayDate(selection.date)} (${selection.day})`,
+      `${study.title}, ${session.title}`,
+      `Date: ${formatDisplayDate(selection.date)}`,
       `Time: ${selection.slot}`,
-      booking.name ? `Participant: ${booking.name}` : undefined,
-    ]
-      .filter(Boolean)
-      .join("\n"),
+      "",
+      "Eligibility criteria:",
+      ...study.eligibilityCriteria.map((criterion) => `- ${criterion}`),
+    ].join("\n"),
     start: {
       dateTime: `${selection.date}T${start}:00`,
       timeZone: calendarTimeZone,
@@ -241,6 +258,9 @@ function buildSessionEvent(
         email: booking.email,
         ...(booking.name ? { displayName: booking.name } : {}),
       },
+      ...researcherGuestEmails
+        .filter((email) => email !== booking.email.toLowerCase())
+        .map((email) => ({ email })),
     ],
     guestsCanInviteOthers: false,
     guestsCanSeeOtherGuests: false,

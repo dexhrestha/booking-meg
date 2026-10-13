@@ -1,6 +1,6 @@
 import { mkdir, readFile, readdir, writeFile } from "fs/promises";
 import path from "path";
-import { get, put } from "@vercel/blob";
+import { get, list, put } from "@vercel/blob";
 import { BlockedSlotEntry, BookingEntry } from "@/lib/booking";
 
 const bookingsFile = path.join(process.cwd(), "data", "bookings.json");
@@ -10,6 +10,8 @@ const bookingsBlobPath = process.env.BLOB_BOOKINGS_PATH ?? "bookings.json";
 const blockedSlotsBlobPath =
   process.env.BLOB_BLOCKED_SLOTS_PATH ?? "blocked-slots.json";
 const blockedSlotsLocalFilePattern = /^blocked[-_]slots.*\.json$/i;
+const cimecCalendarBlobPrefix = "cimec_calendar";
+const cimecCalendarFilePattern = /^cimec_calendar.*\.json$/i;
 
 function hasBlobToken() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
@@ -139,6 +141,51 @@ export async function writeBlockedSlots(blockedSlots: BlockedSlotEntry[]) {
   }
 
   await writeLocalJson(blockedSlotsFile, blockedSlots);
+}
+
+/**
+ * Raw CIMeC calendar exports: `cimec_calendar*.json` objects in Vercel Blob
+ * when deployed, or files in the local `data/` folder otherwise.
+ */
+export async function readCimecCalendarExports(): Promise<unknown[]> {
+  if (shouldUseBlobStorage()) {
+    if (!hasBlobToken()) {
+      throw new Error("Vercel Blob read not configured (missing BLOB_READ_WRITE_TOKEN).");
+    }
+
+    const { blobs } = await list({ prefix: cimecCalendarBlobPrefix });
+    const pathnames = blobs
+      .map((blob) => blob.pathname)
+      .filter((pathname) => cimecCalendarFilePattern.test(pathname))
+      .sort();
+
+    return Promise.all(
+      pathnames.map(async (pathname) => {
+        const result = await get(pathname, { access: "private" });
+
+        if (!result || result.statusCode !== 200) {
+          return [];
+        }
+
+        return JSON.parse(await streamToText(result.stream)) as unknown;
+      }),
+    );
+  }
+
+  try {
+    const fileNames = (await readdir(dataDirectory))
+      .filter((fileName) => cimecCalendarFilePattern.test(fileName))
+      .sort();
+
+    return Promise.all(
+      fileNames.map(async (fileName) =>
+        JSON.parse(await readFile(path.join(dataDirectory, fileName), "utf8")) as unknown,
+      ),
+    );
+  } catch (error: any) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
 }
 
 export function getStorageErrorMessage(error: unknown): string {
