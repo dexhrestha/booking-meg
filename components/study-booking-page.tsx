@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Image, { type StaticImageData } from "next/image";
+import { useRouter } from "next/navigation";
 import {
   BookingEntry,
   BookingState,
@@ -83,6 +84,9 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [showOtherExperimentsPrompt, setShowOtherExperimentsPrompt] =
+    useState(false);
+  const router = useRouter();
   const usesPerSessionDates = study.dateSelectionMode === "per-session";
   const usesSemanticForagingSchedule = study.tag === "semantic-foraging";
   const requiresWeekendSessions = study.requiresWeekendSessions === true;
@@ -168,6 +172,22 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
     invalidSessionDates.length === 0 &&
     missingSlots.length === 0 &&
     unavailableSelections.length === 0;
+
+  useEffect(() => {
+    if (!showOtherExperimentsPrompt) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowOtherExperimentsPrompt(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showOtherExperimentsPrompt]);
 
   useEffect(() => {
     async function loadBookingData() {
@@ -466,6 +486,10 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       if (data.booking) {
         setBooking(data.booking);
         setMessage(data.message ?? "Booking confirmed.");
+
+        if (!editingBookingId) {
+          setShowOtherExperimentsPrompt(true);
+        }
       }
 
       if (data.occupiedSlots) {
@@ -875,6 +899,43 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
             ))}
           </dl>
         </section>
+      ) : null}
+
+      {showOtherExperimentsPrompt ? (
+        <div className="admin-modal-backdrop" role="presentation">
+          <section
+            className="admin-modal admin-modal-narrow"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="other-experiments-title"
+          >
+            <div className="admin-modal-header">
+              <div>
+                <span>Booking confirmed</span>
+                <h3 id="other-experiments-title">
+                  Would you like to take part in our other experiments?
+                </h3>
+              </div>
+            </div>
+            <div className="admin-modal-body">
+              <p>
+                Thank you for booking. We are running other studies too, and
+                you can see them and book sessions on the experiments page.
+              </p>
+            </div>
+            <div className="admin-modal-footer">
+              <button type="button" onClick={() => router.push("/")} autoFocus>
+                Yes, show experiments
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowOtherExperimentsPrompt(false)}
+              >
+                No, thanks
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
     </main>
   );
