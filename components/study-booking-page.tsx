@@ -19,6 +19,7 @@ import {
   getScheduleRequirement,
   getSessionConfigs,
   getSessionDate,
+  getSlotOptionsForDate,
   initialSelections,
   isAllowedPerSessionDate,
   isAllowedStartDate,
@@ -114,7 +115,10 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
 
   const nameLooksValid = isValidParticipantName(name);
   const emailLooksValid = isValidEmail(email);
-  const startDateSelected = isAllowedStartDate(
+  const legacyFirstSession = Boolean(editingBookingId &&
+    existingBooking?.firstSessionDate === selections.session1.date &&
+    existingBooking?.selections.session1.slot === selections.session1.slot);
+  const startDateSelected = legacyFirstSession || isAllowedStartDate(
     usesPerSessionDates ? selections.session1.date : firstSessionDate,
     study.tag,
   );
@@ -123,15 +127,18 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
       usesPerSessionDates
         ? studySessions.filter(
             (session, index) =>
-              !isAllowedPerSessionDate(
+              !((editingBookingId &&
+                existingBooking?.selections[session.id]?.date === selections[session.id].date &&
+                existingBooking?.selections[session.id]?.slot === selections[session.id].slot) ||
+                isAllowedPerSessionDate(
                 study.tag,
                 index,
                 selections[session.id].date,
                 selections,
-              ),
+              )),
           )
         : [],
-    [selections, study.tag, studySessions, usesPerSessionDates],
+    [editingBookingId, existingBooking, selections, study.tag, studySessions, usesPerSessionDates],
   );
   const latestBookingDate = formatDisplayDate(getLatestMegFirstSessionDate());
   const earliestBookingDate = formatDisplayDate(getEarliestBookingDate());
@@ -734,7 +741,13 @@ export function StudyBookingPage({ flyer, study }: StudyBookingPageProps) {
                 ) : null}
 
                 <div className="slot-group" role="radiogroup">
-                  {study.slotOptions.map((slot) => {
+                  {[...new Set([
+                    ...getSlotOptionsForDate(study.tag, selectedDate),
+                    ...(editingBookingId &&
+                      existingBooking?.selections[session.id]?.date === selectedDate
+                      ? [existingBooking.selections[session.id].slot]
+                      : []),
+                  ])].map((slot) => {
                     const inputId = `${study.tag}-${session.id}-${slot}`;
                     const key = slotKey(selections[session.id].date, slot);
                     const isBooked = occupiedSlots[session.id].includes(key);

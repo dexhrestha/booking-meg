@@ -23,9 +23,10 @@ import {
   getDayForDate,
   getLatestMegFirstSessionDate,
   getSessionConfigs,
-  getSlotOptions,
+  getSlotOptionsForDate,
   getStudyConfig,
   isAllowedFirstSessionDate,
+  slotsOverlap,
   studyConfigs,
 } from "@/lib/booking";
 
@@ -70,8 +71,8 @@ type CalendarEvent = {
 const adminSessionStorageKey = "booking-meg-admin-session";
 const calendarDayLabels = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
 const calendarStartMinutes = 8 * 60;
-const calendarEndMinutes = 19 * 60;
-const calendarHourLabels = Array.from({ length: 12 }, (_, index) => {
+const calendarEndMinutes = 20 * 60;
+const calendarHourLabels = Array.from({ length: 13 }, (_, index) => {
   const hour = index + 8;
   return `${String(hour).padStart(2, "0")}:00`;
 });
@@ -848,14 +849,19 @@ export default function ViewBookingsPage() {
 
     for (const event of calendarEvents) {
       slots.add(`${event.date}|${event.slot}`);
+      for (const slot of getSlotOptionsForDate(studyFilter, event.date)) {
+        if (slotsOverlap(slot, event.slot)) {
+          slots.add(`${event.date}|${slot}`);
+        }
+      }
     }
 
     return slots;
-  }, [calendarEvents]);
+  }, [calendarEvents, studyFilter]);
 
   useEffect(() => {
     setBlockStudy(studyFilter);
-    setBlockSlot(getSlotOptions(studyFilter)[0]);
+    setBlockSlot(getSlotOptionsForDate(studyFilter, blockDate)[0] ?? "");
     setEditingBooking(null);
     setBookingToRemove(null);
     setMovingSessionId(null);
@@ -1031,7 +1037,7 @@ export default function ViewBookingsPage() {
     if (slot) {
       setBlockSlot(slot);
     } else {
-      setBlockSlot(getSlotOptions(studyFilter)[0]);
+      setBlockSlot(getSlotOptionsForDate(studyFilter, date ?? blockDate)[0] ?? "");
     }
 
     setAdminModal("block");
@@ -1254,7 +1260,7 @@ export default function ViewBookingsPage() {
                   const dayEvents = weekEvents.filter(
                     (event) => event.date === date,
                   );
-                  const slotOptionsForStudy = getSlotOptions(studyFilter);
+                  const slotOptionsForStudy = getSlotOptionsForDate(studyFilter, date);
 
                   return (
                     <div className="week-calendar-day" key={date}>
@@ -1770,10 +1776,11 @@ export default function ViewBookingsPage() {
                     </label>
                     {getSessionConfigs(getBookingTag(editingBooking)).map(
                       (session) => {
-                        const rowSlotOptions = getSlotOptions(
-                          getBookingTag(editingBooking),
-                        );
                         const selection = editingBooking.selections[session.id];
+                        const rowSlotOptions = [...new Set([
+                          ...getSlotOptionsForDate(getBookingTag(editingBooking), selection.date),
+                          selection.slot,
+                        ])];
 
                         return (
                           <div className="admin-session-edit-row" key={session.id}>
@@ -1939,7 +1946,11 @@ export default function ViewBookingsPage() {
                       <input
                         type="date"
                         value={blockDate}
-                        onChange={(event) => setBlockDate(event.target.value)}
+                        onChange={(event) => {
+                          const nextDate = event.target.value;
+                          setBlockDate(nextDate);
+                          setBlockSlot(getSlotOptionsForDate(blockStudy, nextDate)[0] ?? "");
+                        }}
                         required
                       />
                     </label>
@@ -1949,7 +1960,7 @@ export default function ViewBookingsPage() {
                         value={blockSlot}
                         onChange={(event) => setBlockSlot(event.target.value)}
                       >
-                        {getSlotOptions(blockStudy).map((slot) => (
+                        {getSlotOptionsForDate(blockStudy, blockDate).map((slot) => (
                           <option value={slot} key={slot}>
                             {slot}
                           </option>

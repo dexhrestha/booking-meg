@@ -115,13 +115,22 @@ const standardSlotOptions = [
   "15:00 - 17:00",
 ];
 
-const eyeTrackingSlotOptions = [
-  "08:30 - 10:30",
-  "10:30 - 12:30",
-  "13:30 - 15:30",
-  "15:30 - 17:30",
-  "17:30 - 19:30",
-];
+const monpathSlotsByWeekday: Record<number, string[]> = {
+  1: ["14:00 - 16:00", "16:00 - 18:00", "18:00 - 20:00"],
+  2: ["08:00 - 10:00", "10:00 - 12:00", "12:00 - 14:00", "14:00 - 16:00", "16:00 - 18:00", "18:00 - 20:00"],
+  4: ["16:00 - 18:00", "18:00 - 20:00"],
+  5: ["16:00 - 18:00", "18:00 - 20:00"],
+};
+
+const megSlotsByWeekday: Record<number, string[]> = {
+  1: ["08:00 - 10:00", "10:00 - 12:00", "12:00 - 14:00", "14:00 - 16:00"],
+  2: ["09:00 - 11:00", "11:00 - 13:00", "13:00 - 15:00", "15:00 - 17:00"],
+  4: ["08:00 - 10:00", "10:00 - 12:00", "12:00 - 14:00", "14:00 - 16:00"],
+  5: ["08:00 - 10:00", "10:00 - 12:00", "12:00 - 14:00", "14:00 - 16:00"],
+};
+
+const eyeTrackingSlotOptions = [...new Set(Object.values(monpathSlotsByWeekday).flat())];
+const megSlotOptions = [...new Set(Object.values(megSlotsByWeekday).flat())];
 
 const semanticForagingSlotOptions = [
   "08:30 - 10:00",
@@ -138,7 +147,7 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
     flyerAlt: "MEG long-term memory study recruitment flyer",
     eligibilityCriteria: megEligibilityCriteria,
     dateSelectionMode: "first-session",
-    slotOptions: standardSlotOptions,
+    slotOptions: megSlotOptions,
     requiresWeekendSessions: true,
   },
   "sensorimotor-study": {
@@ -180,8 +189,8 @@ export const megBookingWindowEndDate = "2027-02-28";
 export const semanticForagingBookingWindowEndDate = "2026-12-31";
 export const monpathSessionWindowDays = 60;
 export const monpathFirstSessionEndDate = "2026-12-31";
-// Monday, Tuesday, Wednesday.
-export const monpathWeekdays = [1, 2, 3];
+// Monday, Tuesday, Thursday, Friday.
+export const monpathWeekdays = [1, 2, 4, 5];
 
 export const slotOptions = studyConfigs[defaultStudyTag].slotOptions;
 
@@ -211,6 +220,15 @@ export function getBlockedSlotTag(blockedSlot: Pick<BlockedSlotEntry, "tag">) {
 
 export function getSlotOptions(tag?: string | null) {
   return getStudyConfig(tag).slotOptions;
+}
+
+export function getSlotOptionsForDate(tag: StudyTag, date: string) {
+  const weekday = parseIsoDate(date)?.getDay();
+
+  if (weekday === undefined) return [];
+  if (tag === "eye-track-monpath") return monpathSlotsByWeekday[weekday] ?? [];
+  if (tag === "meg-study") return megSlotsByWeekday[weekday] ?? [];
+  return getSlotOptions(tag);
 }
 
 export function getSessionConfigs(tag?: string | null) {
@@ -567,7 +585,7 @@ export function getScheduleRequirement(tag: StudyTag) {
   }
 
   if (tag === "eye-track-monpath") {
-    return `choose Session 1 on a Monday, Tuesday, or Wednesday between ${earliestDate} and ${formatDisplayDate(monpathFirstSessionEndDate)}, and schedule each later session on a Monday, Tuesday, or Wednesday after the previous one, within ${monpathSessionWindowDays} days of Session 1`;
+    return `choose Session 1 on a Monday, Tuesday, Thursday, or Friday between ${earliestDate} and ${formatDisplayDate(monpathFirstSessionEndDate)}, and schedule each later session on those weekdays after the previous one, within ${monpathSessionWindowDays} days of Session 1`;
   }
 
   if (tag === "semantic-foraging") {
@@ -625,14 +643,14 @@ export function getPerSessionDateRule(
 
   if (tag === "eye-track-monpath") {
     if (sessionIndex === 0) {
-      return `Select a Monday, Tuesday, or Wednesday between ${earliestDate} and ${formatDisplayDate(monpathFirstSessionEndDate)}.`;
+      return `Select a Monday, Tuesday, Thursday, or Friday between ${earliestDate} and ${formatDisplayDate(monpathFirstSessionEndDate)}.`;
     }
 
     const firstSessionDate = selections.session1.date;
 
     return firstSessionDate
-      ? `Select a Monday, Tuesday, or Wednesday after the previous session, up to ${formatDisplayDate(getLatestMonpathSessionDate(firstSessionDate))} (${monpathSessionWindowDays} days after Session 1).`
-      : `Select a Monday, Tuesday, or Wednesday within ${monpathSessionWindowDays} days of Session 1.`;
+      ? `Select a Monday, Tuesday, Thursday, or Friday after the previous session, up to ${formatDisplayDate(getLatestMonpathSessionDate(firstSessionDate))} (${monpathSessionWindowDays} days after Session 1).`
+      : `Select a Monday, Tuesday, Thursday, or Friday within ${monpathSessionWindowDays} days of Session 1.`;
   }
 
   return sessionIndex === 0
@@ -661,8 +679,8 @@ export function validateSelections(
   selections: BookingState,
   firstSessionDate: string,
   tag: StudyTag,
+  previousBooking?: BookingEntry,
 ) {
-  const slotOptions = getSlotOptions(tag);
   const studySessions = getSessionConfigs(tag);
   const flexibleDates = isFlexibleDateStudy(tag);
 
@@ -673,7 +691,11 @@ export function validateSelections(
       return `${session.title} is missing.`;
     }
 
-    const validSlot = slotOptions.includes(selection.slot);
+    const previousSelection = previousBooking?.selections[session.id];
+    const unchangedLegacySelection = previousSelection?.date === selection.date &&
+      previousSelection?.slot === selection.slot;
+    const validSlot = getSlotOptionsForDate(tag, selection.date).includes(selection.slot) ||
+      unchangedLegacySelection;
     const validDay = flexibleDates
       ? selection.day === getDayForDate(selection.date)
       : selection.day === getSessionDayForStudy(firstSessionDate, session, tag);
@@ -681,7 +703,7 @@ export function validateSelections(
       ? isAllowedPerSessionDate(tag, sessionIndex, selection.date, selections)
       : selection.date === getSessionDateForStudy(firstSessionDate, session, tag);
 
-    if (!validDay || !validDate || !validSlot) {
+    if (!validDay || (!validDate && !unchangedLegacySelection) || !validSlot) {
       return `${session.title} has an invalid day, date, or slot.`;
     }
   }
@@ -823,7 +845,7 @@ export function getSharedLabClashSlotKeys(
         continue;
       }
 
-      for (const slot of getSlotOptions(tag)) {
+      for (const slot of getSlotOptionsForDate(tag, date)) {
         if (slotsOverlap(slot, selection.slot)) {
           clashes.add(slotKey(date, slot));
         }

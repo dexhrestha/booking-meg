@@ -9,6 +9,7 @@ import {
   getSharedLabClashSlotKeys,
   getSessionConfigs,
   getSlotOptions,
+  getSlotOptionsForDate,
   getStudyTag,
   isAllowedStartDate,
   isCompleteBooking,
@@ -16,6 +17,7 @@ import {
   isValidIsoDate,
   isValidParticipantName,
   slotKey,
+  slotsOverlap,
   StudyTag,
   validateSelections,
 } from "@/lib/booking";
@@ -108,7 +110,7 @@ export async function POST(request: NextRequest) {
     const slot = input?.slot ?? "";
     const note = input?.note?.trim() ?? "";
 
-    if (!input || !isValidIsoDate(date) || !getSlotOptions(tag).includes(slot)) {
+    if (!input || !isValidIsoDate(date) || !getSlotOptionsForDate(tag, date).includes(slot)) {
       return NextResponse.json(
         { message: "Choose a study, date, and valid slot to block." },
         { status: 400 },
@@ -147,7 +149,7 @@ export async function POST(request: NextRequest) {
         getSessionConfigs(tag).some((session) => {
           const selection = booking.selections?.[session.id];
 
-          return selection?.date === date && selection?.slot === slot;
+          return selection?.date === date && Boolean(selection?.slot && slotsOverlap(selection.slot, slot));
         }),
     );
 
@@ -210,8 +212,7 @@ export async function PUT(request: NextRequest) {
   if (
     !booking.id ||
     !isValidParticipantName(name) ||
-    !isValidEmail(email) ||
-    !isAllowedStartDate(booking.firstSessionDate, tag)
+    !isValidEmail(email)
   ) {
     return NextResponse.json(
       {
@@ -219,16 +220,6 @@ export async function PUT(request: NextRequest) {
       },
       { status: 400 },
     );
-  }
-
-  const validationError = validateSelections(
-    booking.selections,
-    booking.firstSessionDate,
-    tag,
-  );
-
-  if (validationError) {
-    return NextResponse.json({ message: validationError }, { status: 400 });
   }
 
     const bookings = await readBookings();
@@ -240,6 +231,18 @@ export async function PUT(request: NextRequest) {
       { message: "This booking no longer exists." },
       { status: 404 },
     );
+  }
+
+  if (!isAllowedStartDate(booking.firstSessionDate, tag) &&
+    booking.firstSessionDate !== bookings[bookingIndex].firstSessionDate) {
+    return NextResponse.json({ message: getInvalidBookingMessage(tag) }, { status: 400 });
+  }
+
+  const validationError = validateSelections(
+    booking.selections, booking.firstSessionDate, tag, bookings[bookingIndex],
+  );
+  if (validationError) {
+    return NextResponse.json({ message: validationError }, { status: 400 });
   }
 
   const emailUsed = bookings.some(
@@ -273,7 +276,7 @@ export async function PUT(request: NextRequest) {
 
           return (
             existing.date === requested.date &&
-            existing.slot === requested.slot
+            slotsOverlap(existing.slot, requested.slot)
           );
         })
       );
@@ -322,7 +325,7 @@ export async function PUT(request: NextRequest) {
 
         return (
           selection?.date === blockedSlot.date &&
-          selection?.slot === blockedSlot.slot
+          Boolean(selection?.slot && slotsOverlap(selection.slot, blockedSlot.slot))
         );
       }),
   );

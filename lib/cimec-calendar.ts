@@ -1,6 +1,6 @@
 import {
   BlockedSlotEntry,
-  getSlotOptions,
+  getSlotOptionsForDate,
   parseSlotRange,
   parseTimeRange,
   rangesOverlap,
@@ -193,7 +193,7 @@ function isResourceRelevantForStudy(
 
 export async function getCimecOccupiedSlotKeys(tag: StudyTag, date: string) {
   const occupied = new Set<string>();
-  const slotOptions = getSlotOptions(tag);
+  const slotOptions = getSlotOptionsForDate(tag, date);
 
   for (const { booking, resource } of (await readCimecCalendarResources())
     .flatMap((resource) =>
@@ -272,7 +272,7 @@ export async function getCimecBlockedSlots() {
           continue;
         }
 
-        for (const slot of study.slotOptions) {
+        for (const slot of getSlotOptionsForDate(study.tag, booking.date)) {
           const slotRange = parseSlotRange(slot);
 
           if (!slotRange || !rangesOverlap(bookingRange, slotRange)) {

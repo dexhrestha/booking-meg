@@ -11,6 +11,7 @@ import {
   getSharedLabClashSlotKeys,
   getSessionConfigs,
   getSessionDateForStudy,
+  getSlotOptionsForDate,
   getStudyConfig,
   getStudyTag,
   isAllowedStartDate,
@@ -22,6 +23,7 @@ import {
   SessionId,
   SlotBlockReason,
   slotKey,
+  slotsOverlap,
   StudyTag,
   validateSelections,
 } from "@/lib/booking";
@@ -131,11 +133,11 @@ async function getOccupiedSlots(
         const selection = booking.selections[existingSession.id];
 
         if (selection?.date === requestedDate && selection.slot) {
-          addOccupiedSlot(
-            session.id,
-            slotKey(requestedDate, selection.slot),
-            "unavailable",
-          );
+          for (const slot of getSlotOptionsForDate(tag, requestedDate)) {
+            if (slotsOverlap(slot, selection.slot)) {
+              addOccupiedSlot(session.id, slotKey(requestedDate, slot), "unavailable");
+            }
+          }
         }
       }
     }
@@ -153,11 +155,11 @@ async function getOccupiedSlots(
       const requestedDate = sessionDates[session.id];
 
       if (requestedDate === blockedSlot.date) {
-        addOccupiedSlot(
-          session.id,
-          slotKey(blockedSlot.date, blockedSlot.slot),
-          "unavailable",
-        );
+        for (const slot of getSlotOptionsForDate(tag, requestedDate)) {
+          if (slotsOverlap(slot, blockedSlot.slot)) {
+            addOccupiedSlot(session.id, slotKey(requestedDate, slot), "unavailable");
+          }
+        }
       }
     }
   }
@@ -455,7 +457,6 @@ export async function PUT(request: NextRequest) {
       !isValidEmail(email) ||
       payload.criteriaAccepted !== true ||
       (study.requiresWeekendSessions && !weekendSessionsAccepted) ||
-      !isAllowedStartDate(firstSessionDate, tag) ||
       !selections
     ) {
       return NextResponse.json(
@@ -464,12 +465,6 @@ export async function PUT(request: NextRequest) {
         },
         { status: 400 },
       );
-    }
-
-    const validationError = validateSelections(selections, firstSessionDate, tag);
-
-    if (validationError) {
-      return NextResponse.json({ message: validationError }, { status: 400 });
     }
 
     const bookings = await readBookings();
@@ -486,6 +481,16 @@ export async function PUT(request: NextRequest) {
         { message: "No booking was found for this email to edit." },
         { status: 404 },
       );
+    }
+
+    const previousBooking = bookings[bookingIndex];
+    if (!isAllowedStartDate(firstSessionDate, tag) &&
+      firstSessionDate !== previousBooking.firstSessionDate) {
+      return NextResponse.json({ message: getInvalidBookingMessage(tag) }, { status: 400 });
+    }
+    const validationError = validateSelections(selections, firstSessionDate, tag, previousBooking);
+    if (validationError) {
+      return NextResponse.json({ message: validationError }, { status: 400 });
     }
 
     const selectedSessionDates = getSessionDatesForSelections(selections, tag);
@@ -539,7 +544,6 @@ export async function PUT(request: NextRequest) {
 
     await writeBookings(updatedBookings);
 
-    const previousBooking = bookings[bookingIndex];
     const removedBookings = bookings.filter(
       (item) =>
         item.id !== booking.id &&

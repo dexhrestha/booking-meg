@@ -4,7 +4,7 @@ import {
   formatDisplayDate,
   getBookingTag,
   getSessionConfigs,
-  getSlotOptions,
+  getSlotOptionsForDate,
   getStudyConfig,
   MinuteRange,
   parseSlotRange,
@@ -676,7 +676,7 @@ export async function getGoogleBusySlotKeys(tag: StudyTag, dates: string[]) {
         (target) => rangesByCalendar.get(target.calendarId) ?? [],
       );
 
-      for (const slot of getSlotOptions(tag)) {
+      for (const slot of getSlotOptionsForDate(tag, date)) {
         const slotRange = parseSlotRange(slot);
 
         if (!slotRange) {
