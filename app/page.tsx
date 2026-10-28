@@ -3,7 +3,7 @@ import Link from "next/link";
 import flyerMegEng from "@/assets/flyer_MEG_eng.png";
 import flyerSemanticForaging from "@/assets/flyer_semantic_foraging.jpeg";
 import flyerMonpath from "@/assets/flyer_monpath.webp";
-import { studyConfigs } from "@/lib/booking";
+import { isPublicBookingOpen, studyConfigs } from "@/lib/booking";
 
 // import { redirect } from "next/navigation";
 
@@ -41,7 +41,9 @@ const experiments: ExperimentCard[] = [
     image: flyerMonpath,
     meta: "3 sessions · Mon–Wed within 60 days",
   },
-];
+].filter((experiment) =>
+  experiment.href !== "/monpath" || isPublicBookingOpen("eye-track-monpath"),
+);
 
 export default function Home() {
   // redirect("/september");

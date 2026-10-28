@@ -183,6 +183,12 @@ export const studyConfigs: Record<StudyTag, StudyConfig> = {
 };
 
 export const defaultStudyTag: StudyTag = "meg-study";
+export const monpathBookingOpen = false;
+
+export function isPublicBookingOpen(tag: StudyTag) {
+  return tag !== "eye-track-monpath" || monpathBookingOpen;
+}
+
 export const bookingWindowLeadDays = 7;
 export const bookingWindowEndDate = "2026-10-31";
 export const megBookingWindowEndDate = "2027-02-28";

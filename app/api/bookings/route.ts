@@ -17,6 +17,7 @@ import {
   isAllowedStartDate,
   isCompleteBooking,
   isFlexibleDateStudy,
+  isPublicBookingOpen,
   isValidEmail,
   isValidParticipantName,
   OccupiedSlotReasons,
@@ -239,6 +240,9 @@ function getSessionDatesForSelections(selections: BookingState, tag: StudyTag) {
 export async function GET(request: NextRequest) {
   try {
     const tag = getStudyTag(request.nextUrl.searchParams.get("tag"));
+    if (!isPublicBookingOpen(tag)) {
+      return NextResponse.json({ message: "This study has concluded." }, { status: 410 });
+    }
     const firstSessionDate =
       request.nextUrl.searchParams.get("firstSessionDate");
     const email = request.nextUrl.searchParams
@@ -254,7 +258,9 @@ export async function GET(request: NextRequest) {
 
     if (view === "all") {
       return NextResponse.json({
-        bookings: bookings.filter((booking) => isCompleteBooking(booking)),
+        bookings: bookings.filter((booking) =>
+          isCompleteBooking(booking) && isPublicBookingOpen(getBookingTag(booking)),
+        ),
       });
     }
 
@@ -312,6 +318,9 @@ export async function POST(request: NextRequest) {
       selections?: BookingState;
     };
     const tag = getStudyTag(payload.tag);
+    if (!isPublicBookingOpen(tag)) {
+      return NextResponse.json({ message: "This study has concluded." }, { status: 410 });
+    }
     const study = getStudyConfig(tag);
     const name = payload.name?.trim() ?? "";
     const email = payload.email?.trim().toLowerCase() ?? "";
@@ -442,6 +451,9 @@ export async function PUT(request: NextRequest) {
       selections?: BookingState;
     };
     const tag = getStudyTag(payload.tag);
+    if (!isPublicBookingOpen(tag)) {
+      return NextResponse.json({ message: "This study has concluded." }, { status: 410 });
+    }
     const study = getStudyConfig(tag);
     const id = payload.id ?? "";
     const name = payload.name?.trim() ?? "";
