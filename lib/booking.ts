@@ -135,8 +135,7 @@ const megSlotOptions = [...new Set(Object.values(megSlotsByWeekday).flat())];
 const semanticForagingSlotOptions = [
   "08:30 - 10:00",
   "10:15 - 11:45",
-  "13:00 - 14:30",
-  "14:45 - 16:15",
+  "12:00 - 13:30",
 ];
 
 export const studyConfigs: Record<StudyTag, StudyConfig> = {
